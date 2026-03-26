@@ -1120,7 +1120,7 @@ async function hostNextDay(){
 // ===== FINAL =====
 function buildFinal(data){
   const players=data.players||{};
-  const sortedFixed=Object.entries(players).filter(([,p])=>p).sort(([,a],[,b])=>{
+ const sortedFixed=Object.entries(players).filter(([,p])=>p).sort(([,a],[,b])=>{
     if((b.money||0)!==(a.money||0)) return (b.money||0)-(a.money||0);
     return (b.hearts||0)-(a.hearts||0);
   });
