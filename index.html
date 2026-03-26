@@ -629,9 +629,18 @@ function handleUpdate(data){
     updatePileCounts(data);
     updatePlayersBar(data.players, data.roundChoices||{});
   } else if(phase==='question'){
+    const qIdx = data.currentQIdx||0;
+    const curQIdx = parseInt(document.getElementById('question').dataset.qIdx||'-1');
     if(cur!=='question'){
+      answeredThisQ=false;
+      document.getElementById('question').dataset.qIdx='-1';
       setupQuestion(data);
       show('question');
+    } else if(qIdx !== curQIdx){
+      // New question index — reset and load
+      answeredThisQ=false;
+      document.getElementById('question').dataset.qIdx=qIdx;
+      setupQuestion(data);
     }
     updatePlayersBar(data.players, {});
   } else if(phase==='result'){
@@ -684,8 +693,7 @@ function setupDayIntro(day){
   document.getElementById('diDesc').textContent=cfg.nDesc;
   document.getElementById('diInfo').innerHTML=
     `<b style="color:var(--text)">📋 ${cfg.rounds} รอบ · ${cfg.piles} กอง</b><br>`+
-    `🦹 โจรโผล่รอบ: ${cfg.robRounds.join(', ')}<br>`+
-    `💰 ปกติ: +${fmt(cfg.reward)} | กรวด+ถูก: +${fmt(cfg.gCorrect)}`;
+    `💰 รอบปกติ: +${fmt(cfg.reward)} | กรวด+ถูก: +${fmt(cfg.gCorrect)}`;
   if(isHost){ document.getElementById('diBtnHost').classList.remove('hidden'); document.getElementById('diGuestMsg').classList.add('hidden'); }
   else { document.getElementById('diBtnHost').classList.add('hidden'); document.getElementById('diGuestMsg').classList.remove('hidden'); }
 }
@@ -730,10 +738,8 @@ async function startRound(day, round, roomData){
 function setupBoard(data){
   const day=data.currentDay, round=data.currentRound, cfg=DAY[day];
   document.getElementById('topRound').textContent=`Day ${day} · รอบ ${round}/${cfg.rounds}`;
-  document.getElementById('topNight').textContent=cfg.night;
+  document.getElementById('topNight').textContent=cfg.night+' '+cfg.nName;
   document.getElementById('topNight').title=cfg.nName;
-  const ra=document.getElementById('robberAlert');
-  data.isRobRound ? ra.classList.add('show') : ra.classList.remove('show');
   if(isHost) document.getElementById('dashBtn').classList.remove('hidden');
   else document.getElementById('dashBtn').classList.add('hidden');
 
@@ -843,6 +849,7 @@ function setupQuestion(data){
   const q=qs[qIdx];
   document.getElementById('qWord').textContent=q.word;
   document.getElementById('qMeta').textContent=`ข้อ ${qIdx+1}/${qs.length} · ${q.type==='i'?'い':'な'}-adj (${q.meaning})`;
+  document.getElementById('question').dataset.qIdx=qIdx;
 
   const grid=document.getElementById('choicesGrid');
   grid.innerHTML='';
@@ -1120,7 +1127,7 @@ async function hostNextDay(){
 // ===== FINAL =====
 function buildFinal(data){
   const players=data.players||{};
- const sortedFixed=Object.entries(players).filter(([,p])=>p).sort(([,a],[,b])=>{
+  const sortedFixed=Object.entries(players).filter(([,p])=>p).sort(([,a],[,b])=>{
     if((b.money||0)!==(a.money||0)) return (b.money||0)-(a.money||0);
     return (b.hearts||0)-(a.hearts||0);
   });
