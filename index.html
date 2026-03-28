@@ -1289,50 +1289,60 @@ function showGameBoard(){
   document.getElementById('pile-count-label').textContent = nc.piles;
 
   updatePlayersStatus();
-  renderPiles(nc.piles); // render ก่อน แล้วค่อย lock
+  renderPiles(nc.piles);
 
-  // Robber warning banner + pile lock
+  // Banner
   let warningEl = document.getElementById('robber-warning-banner');
   if(!warningEl){
     warningEl = document.createElement('div');
     warningEl.id = 'robber-warning-banner';
-    warningEl.style.cssText = 'margin-bottom:12px;border-radius:10px;padding:14px 16px;text-align:center;font-weight:700;font-size:0.95rem;transition:all 0.3s;';
+    warningEl.style.cssText = 'margin-bottom:12px;border-radius:10px;padding:14px 16px;text-align:center;font-weight:700;font-size:0.95rem;';
     const pileSection = document.querySelector('.piles-section');
     pileSection.parentNode.insertBefore(warningEl, pileSection);
   }
 
   if(isRobberRound){
+    // ข้อ 4: Lock กองทันที แล้วนับถอยหลัง
+    document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=true);
     warningEl.style.display = 'block';
-    warningEl.style.background = 'rgba(232,69,69,0.2)';
-    warningEl.style.border = '2px solid rgba(232,69,69,0.6)';
+    warningEl.style.background = 'rgba(232,69,69,0.15)';
+    warningEl.style.border = '2px solid rgba(232,69,69,0.5)';
     warningEl.style.color = '#ff8080';
 
-    // Lock piles immediately after render
-    document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=true);
+    const robberTauntBanners = {
+      petty:['🦹 "ฮ่าๆ ข้าซ่อนอยู่แล้วนะ เลือกให้ดีล่ะ!"','🦹 "อยากได้เงินไหม? ก็ผันให้ถูกซิ!"'],
+      gang:['🦹🦹 "พวกเราซ่อนอยู่หลายคนนะ หาเราให้เจอถ้าเก่ง!"','🦹🦹 "ฮ่าๆ สี่ข้อรออยู่! พร้อมแพ้หรือยัง?"'],
+      boss:['🦹‍♂️ "ข้ามาเองเลย... เตรียมสูญเสียได้เลย!"','🦹‍♂️ "บอสมาแล้ว! ผันผิดข้อเดียวก็หมดเลย!"']
+    };
+    const nc2 = NIGHT_CONFIG[day];
+    const robberTypeForBanner = (room.roundRobberTypes||{})[round] || 'petty';
+    const banners = robberTauntBanners[robberTypeForBanner] || robberTauntBanners.petty;
+    const tauntText = banners[Math.floor(Math.random()*banners.length)];
+
+    warningEl.innerHTML = `<div style="font-size:1.1rem;margin-bottom:4px">${tauntText}</div>`;
 
     let countdown = 3;
-    warningEl.innerHTML = `🚨 <strong>มีโจรซ่อนอยู่!</strong> ระวังให้ดีก่อนเลือกกอง... (${countdown})`;
+    const countEl = document.createElement('div');
+    countEl.style.cssText = 'font-size:2rem;font-weight:900;color:var(--accent-red);margin-top:6px';
+    countEl.textContent = countdown;
+    warningEl.appendChild(countEl);
 
     const countInterval = setInterval(()=>{
       countdown--;
       if(countdown > 0){
-        warningEl.innerHTML = `🚨 <strong>มีโจรซ่อนอยู่!</strong> ระวังให้ดีก่อนเลือกกอง... (${countdown})`;
+        countEl.textContent = countdown;
       } else {
         clearInterval(countInterval);
-        warningEl.innerHTML = `⚠️ <strong>มีโจร!</strong> ทุกกองเป็นกรวด — ผันคำถูกจะรอด! เลือกเลย!`;
-        warningEl.style.background = 'rgba(232,69,69,0.1)';
-        warningEl.style.border = '1px solid rgba(232,69,69,0.3)';
+        warningEl.innerHTML = `⚠️ เลือกกองได้แล้ว! ทุกกองมีกรวด — ผันให้ถูกก่อนโดนจับ!`;
+        warningEl.style.background = 'rgba(232,69,69,0.08)';
         if(state.myPileChoice === null){
           document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=false);
         }
       }
     }, 1000);
   } else {
-    warningEl.style.display = 'block';
-    warningEl.style.background = 'rgba(255,255,255,0.04)';
-    warningEl.style.border = '1px solid rgba(255,255,255,0.08)';
-    warningEl.style.color = 'var(--text-dim)';
-    warningEl.innerHTML = '🪨 เจอกรวด = ผันคำ 1 ข้อ (ไม่ได้เงิน) &nbsp;|&nbsp; 💰 เจอเงิน = +300,000฿ ทันที';
+    // ข้อ 1: ลบ banner ปกติออก
+    warningEl.style.display = 'none';
   }
 
   state.myPileChoice = null;
@@ -1452,6 +1462,10 @@ function startListeningToGame(){
       if(state.isHost && !_resolvingQuestions && myResult.needsQuestion !== true){
         waitAndResolveQuestions();
       }
+    }
+
+    if(phase === 'robber_taunt'){
+      showRobberTaunt(room.robberTauntData);
     }
 
     if(phase === 'result'){
@@ -1728,18 +1742,44 @@ const WRONG_MSGS = [
   { jp:'もう一度見直して！📚', th:'ดูใหม่อีกทีนะ!! อย่างนี้สอบตกแน่ๆ เลยยยย! 💀' },
 ];
 
+const GRAVEL_TAUNTS_PRE = [
+  '🪨 จับได้กองกรวดอีกแล้ว!\nมาฝึกสายตาหน่อยดีกว่า 😏',
+  '🪨 กรวดอีกแล้ว!!\nสายตาต้องฝึกอีกเยอะเลยนะ 👀',
+  '🪨 โอ้โห กรวดทุกทีเลย!\nครั้งนี้ผันให้ถูกด้วยนะ 😤',
+  '🪨 กรวดอีก! นี่ดวงหรือฝีมือกันแน่? 🤔',
+  '🪨 เจอกรวดซ้ำ!\nมาพิสูจน์ว่าผันได้นะ 💪',
+];
 
+function startQuestion(questionData, robberType){
   if(!questionData || questionData.length === 0) return;
-  const rt = ROBBER_TYPE[robberType] || ROBBER_TYPE.petty;
 
   state.currentQuestions = questionData;
   state.currentQIndex = 0;
   state.qAnswers = [];
-  state.currentRobberType = robberType;
+  state.currentRobberType = robberType || 'normal';
 
-  renderQuestion();
-  showScreen('screen-question');
+  const isRobber = robberType && robberType !== 'normal';
+  if(!isRobber){
+    // ข้อ 2: gravel round → popup ยั่วยุก่อน
+    const taunt = GRAVEL_TAUNTS_PRE[Math.floor(Math.random()*GRAVEL_TAUNTS_PRE.length)];
+    document.getElementById('screen-question').innerHTML = `
+      <div class="panel question-panel slide-up" style="text-align:center;padding:32px 24px">
+        <div style="font-size:3.5rem;margin-bottom:12px">🪨</div>
+        <div style="font-size:1.3rem;font-weight:900;color:var(--accent-gold);line-height:1.5;margin-bottom:16px;white-space:pre-line">${taunt}</div>
+        <div style="color:var(--text-dim);font-size:0.9rem;margin-bottom:24px">ผันปฏิเสธปัจจุบันให้ถูกต้องนะคะ!</div>
+        <button class="btn btn-gold" style="width:100%;font-size:1.1rem;padding:14px" onclick="startActualQuestion()">สู้เลย! →</button>
+      </div>
+    `;
+    showScreen('screen-question');
+  } else {
+    renderQuestion();
+    showScreen('screen-question');
+  }
 }
+
+window.startActualQuestion = function(){
+  renderQuestion();
+};
 
 let qTimer = null;
 function renderQuestion(){
@@ -1853,12 +1893,12 @@ window.answerQ = function(answer){
         <div style="margin:8px 0">${furiganaHTML2}</div>
       </div>
       <div class="choices-grid">${choicesHTML}</div>
-      <div style="text-align:center;padding:8px;font-size:1.1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
-        ${isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด — คำตอบคือ: <span style="font-family:'Noto Sans JP',sans-serif">${correct}</span>`}
+      <div style="text-align:center;padding:8px;font-size:1.3rem;font-weight:900;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
+        ${isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด! → <span style="font-family:'Noto Sans JP',sans-serif;color:var(--accent-gold)">${correct}</span>`}
       </div>
-      <div style="text-align:center;background:${isCorrect?'rgba(80,200,120,0.08)':'rgba(232,69,69,0.08)'};border-radius:10px;padding:10px 12px;margin:4px 0">
-        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'#ff8080'};margin-bottom:4px">${msgObj.jp}</div>
-        <div style="font-size:0.85rem;color:var(--text-dim)">${msgObj.th}</div>
+      <div style="text-align:center;background:${isCorrect?'rgba(80,200,120,0.1)':'rgba(232,69,69,0.1)'};border-radius:10px;padding:12px 16px;margin:6px 0">
+        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1.1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'#ff8080'};margin-bottom:6px">${msgObj.jp}</div>
+        <div style="font-size:0.95rem;color:${isCorrect?'#a0f0b0':'#ffcccc'};font-weight:600">${msgObj.th}</div>
       </div>
       <button class="btn btn-gold" style="width:100%;margin-top:8px" onclick="nextQuestion()">
         ${state.qAnswers.length >= total ? 'ส่งคำตอบ →' : 'ข้อถัดไป →'}
@@ -2026,14 +2066,65 @@ async function resolveRobberRound(room){
     });
   });
 
-  await update(ref(db,'rooms/'+state.roomCode),{
-    phase:'result',
-    resultData:{ perPlayer, isRobberRound, robberType },
-    qaLogRound: qaLog,
-    _resolving: false,
-    _questionResolving: false
-  });
+  // ข้อ 5: ถ้ามีคนโดนโจร (robber_lost) → ไปหน้า robber_taunt ก่อน แล้วค่อย result
+  const anyRobberLost = Object.values(perPlayer).some(pd=>pd.outcome==='robber_lost');
+
+  if(isRobberRound && anyRobberLost){
+    const robberVictoryTaunts = {
+      petty:['🦹 "ฮ่าๆๆๆ! ข้าชนะแล้ว! เอาเงินไปด้วยนะ!"','🦹 "ฝีมือแค่นี้เอง? น่าเสียดายจัง!"'],
+      gang:['🦹🦹 "พวกเราชนะ!! เงินกูหมด! ขอบคุณมากนะ~"','🦹🦹 "สี่ข้อก็สู้พวกเราไม่ได้! ล้มเหลวมาก!"'],
+      boss:['🦹‍♂️ "บอสชนะอีกครั้ง! คนนี้อ่อนแอมากๆ!"','🦹‍♂️ "ฮ่าฮ่าฮ่า! เงินหมด หัวใจหายด้วย! ขอบคุณ~"']
+    };
+    const taunts = robberVictoryTaunts[robberType] || robberVictoryTaunts.petty;
+    const taunt = taunts[Math.floor(Math.random()*taunts.length)];
+
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase:'robber_taunt',
+      robberTauntData:{ taunt, robberType },
+      resultData:{ perPlayer, isRobberRound, robberType },
+      qaLogRound: qaLog,
+      _resolving: false,
+      _questionResolving: false
+    });
+  } else {
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase:'result',
+      resultData:{ perPlayer, isRobberRound, robberType },
+      qaLogRound: qaLog,
+      _resolving: false,
+      _questionResolving: false
+    });
+  }
 }
+
+// ===== ROBBER TAUNT (after wrong answer) =====
+function showRobberTaunt(data){
+  if(!data) return;
+  if(document.getElementById('screen-emergency').classList.contains('active') &&
+     document.getElementById('screen-emergency').dataset.tauntShown === 'true') return;
+
+  const rt = ROBBER_TYPE[data.robberType] || ROBBER_TYPE.petty;
+  const screen = document.getElementById('screen-emergency');
+  screen.dataset.tauntShown = 'true';
+  screen.innerHTML = `
+    <div class="emergency-panel slide-up" style="text-align:center">
+      <div style="font-size:5rem;animation:shake 0.5s ease-in-out infinite">${rt.emoji}</div>
+      <div style="font-size:1.6rem;font-weight:900;color:var(--accent-red);margin:16px 0 8px">โจรชนะ!!</div>
+      <div style="background:rgba(232,69,69,0.15);border:1px solid rgba(232,69,69,0.4);border-radius:12px;padding:16px 20px;margin:12px 0">
+        <div style="font-size:1.2rem;font-weight:700;color:#ff8080;line-height:1.6">${data.taunt}</div>
+      </div>
+      <div style="color:var(--text-dim);font-size:0.85rem;margin:12px 0">ดูผลรอบนี้ได้เลย...</div>
+      ${state.isHost
+        ? `<button class="btn btn-red" style="min-width:180px;margin-top:8px" onclick="hostGoToResult()">ดูผลรอบนี้ →</button>`
+        : `<div style="color:var(--text-dim);font-size:0.85rem">รอ Host นำไปต่อ...</div>`}
+    </div>
+  `;
+  showScreen('screen-emergency');
+}
+
+window.hostGoToResult = async function(){
+  await update(ref(db,'rooms/'+state.roomCode),{ phase:'result' });
+};
 
 // ===== RESULT =====
 function showResult(resultData, pileResults, pileChoices){
