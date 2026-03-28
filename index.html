@@ -1441,17 +1441,15 @@ function updateChoiceIndicators(choices){
 }
 
 function showWaitingForQuestion(){
-  // Keep screen-question structure intact, just show a waiting overlay inside the panel
-  const panel = document.querySelector('#screen-question .question-panel');
-  if(panel){
-    panel.innerHTML = `
+  document.getElementById('screen-question').innerHTML = `
+    <div class="panel question-panel">
       <div style="text-align:center;padding:40px">
         <div style="font-size:4rem;margin-bottom:16px">💰</div>
         <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold)">คุณเจอถุงเงิน!</div>
         <div style="color:var(--text-dim);margin-top:8px">รอผู้เล่นอื่นตอบคำถาม...</div>
       </div>
-    `;
-  }
+    </div>
+  `;
   showScreen('screen-question');
 }
 
@@ -1626,49 +1624,55 @@ function renderQuestion(){
   const qdata = state.currentQuestions[idx];
   const rt = ROBBER_TYPE[state.currentRobberType] || ROBBER_TYPE.petty;
 
-  // Header
-  const badge = document.getElementById('q-robber-badge');
-  badge.textContent = rt.emoji+' '+rt.name;
-  badge.className = 'q-robber-badge';
-  badge.style.background = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
-  badge.style.color = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
+  const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
+  const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
+  const typeClass = qdata.adj.type==='i'?'i-adj':'na-adj';
+  const typeLabel = qdata.adj.type==='i'?'い-adj':'な-adj';
 
-  document.getElementById('q-count').textContent = `คำถามที่ ${idx+1} / ${total}`;
-
-  // Multi-Q progress
-  const prog = document.getElementById('multi-q-progress');
-  prog.innerHTML = Array.from({length:total},(_,i)=>{
+  const progressDots = Array.from({length:total},(_,i)=>{
     let cls = 'mq-dot';
     if(i < idx) cls += state.qAnswers[i]?.correct ? ' done-correct' : ' done-wrong';
     if(i === idx) cls += ' current';
     return `<div class="${cls}"></div>`;
   }).join('');
 
-  // Question content
-  document.getElementById('q-word').textContent = qdata.adj.word;
-  const typeBadge = document.getElementById('q-type-badge');
-  typeBadge.textContent = qdata.adj.type==='i'?'い-adj':'な-adj';
-  typeBadge.className = 'q-type-badge '+(qdata.adj.type==='i'?'i-adj':'na-adj');
-  document.getElementById('q-prompt').textContent = `"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน`;
-
-  // Choices
-  const grid = document.getElementById('choices-grid');
-  grid.innerHTML = qdata.choices.map((c,i)=>`
-    <button class="choice-btn" onclick="answerQ('${c.replace(/'/g,"\\'")}')">
+  const choicesHTML = qdata.choices.map(c=>`
+    <button class="choice-btn" onclick="answerQ('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
       ${c}
     </button>
   `).join('');
 
-  // Feedback
-  document.getElementById('q-feedback').textContent = '';
+  // Rebuild the whole panel fresh every time — prevents null element errors
+  const screen = document.getElementById('screen-question');
+  screen.innerHTML = `
+    <div class="panel question-panel slide-up">
+      <div class="question-header">
+        <span class="q-robber-badge" style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor};padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700">${rt.emoji} ${rt.name}</span>
+        <span style="color:var(--text-dim);font-size:0.85rem">คำถามที่ ${idx+1} / ${total}</span>
+        <div class="q-timer" id="q-timer">20</div>
+      </div>
+
+      <div class="multi-q-progress">${progressDots}</div>
+
+      <div class="question-box">
+        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:8px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
+        <div style="font-size:2.2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">${qdata.adj.word}</div>
+        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:6px">${typeLabel}</div>
+      </div>
+
+      <div class="choices-grid">${choicesHTML}</div>
+
+      <div id="q-feedback" style="text-align:center;padding:10px;font-size:0.9rem;min-height:40px"></div>
+    </div>
+  `;
 
   // Timer
   clearInterval(qTimer);
   let timeLeft = 20;
-  document.getElementById('q-timer').textContent = timeLeft;
   qTimer = setInterval(()=>{
     timeLeft--;
-    document.getElementById('q-timer').textContent = timeLeft;
+    const timerEl = document.getElementById('q-timer');
+    if(timerEl) timerEl.textContent = timeLeft;
     if(timeLeft<=0){
       clearInterval(qTimer);
       answerQ('__timeout__');
@@ -1722,17 +1726,17 @@ async function submitAnswers(){
     timestamp: Date.now()
   });
 
-  showScreen('screen-question');
-  const panel = document.querySelector('#screen-question .question-panel');
-  if(panel){
-    panel.innerHTML = `
+  // Rebuild screen with result message
+  document.getElementById('screen-question').innerHTML = `
+    <div class="panel question-panel">
       <div style="text-align:center;padding:40px">
         <div style="font-size:3rem;margin-bottom:12px">${allCorrect?'✅':'❌'}</div>
         <div style="font-size:1.2rem;font-weight:700;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'}">${allCorrect?'ตอบถูกทุกข้อ!':'ตอบผิด!'}</div>
         <div style="color:var(--text-dim);margin-top:8px">รอผลรวมจากทุกคน...</div>
       </div>
-    `;
-  }
+    </div>
+  `;
+  showScreen('screen-question');
 
   // Host waits for all to answer, then resolves
   if(state.isHost){
