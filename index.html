@@ -1365,6 +1365,7 @@ function startListeningToGame(){
     }
 
     if(phase === 'select'){
+      _resolvingQuestions = false;
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
       }
@@ -1387,20 +1388,25 @@ function startListeningToGame(){
     }
 
     if(phase === 'question'){
-      if(!document.getElementById('screen-question').classList.contains('active')){
-        const pid = state.playerId;
-        const pr = room.pileResults || {};
-        const myResult = pr[pid] || {};
-        // hitRobber = true means this player hit the robber pile → must answer
+      const pid = state.playerId;
+      const pr = room.pileResults || {};
+      const myResult = pr[pid] || {};
+      const screenActive = document.getElementById('screen-question').classList.contains('active');
+
+      if(!screenActive){
         if(myResult.hitRobber === true){
           const qData = room.questionData || room.emergencyData?.questionData;
           startQuestion(qData, room.emergencyData?.robberType || 'petty');
         } else {
-          // Hit money or safe gravel — just wait
           showWaitingForQuestion();
         }
       }
-    }
+
+      // Host must always drive resolution
+      // Guard with both local flag and Firebase flag to prevent double-firing
+      if(state.isHost && !_resolvingQuestions && !room._questionResolving && myResult.hitRobber !== true){
+        waitAndResolveQuestions();
+      }    }
 
     if(phase === 'result'){
       showResult(room.resultData, room.pileResults, room.pileChoices);
@@ -1737,10 +1743,17 @@ async function submitAnswers(){
   }
 }
 
+let _resolvingQuestions = false;
 async function waitAndResolveQuestions(){
+  if(_resolvingQuestions) return;
+  _resolvingQuestions = true;
+
+  // Mark in Firebase so duplicate listener calls don't re-trigger
+  await update(ref(db,'rooms/'+state.roomCode),{_questionResolving:true});
+
   const pollInterval = setInterval(async()=>{
     const snap = await get(ref(db,'rooms/'+state.roomCode));
-    if(!snap.exists()){ clearInterval(pollInterval); return; }
+    if(!snap.exists()){ clearInterval(pollInterval); _resolvingQuestions=false; return; }
     const room = snap.val();
     const pileResults = room.pileResults || {};
     const answers = room.answers || {};
@@ -1751,6 +1764,7 @@ async function waitAndResolveQuestions(){
     // If nobody hit the robber pile, resolve immediately
     if(robberHitPlayers.length === 0){
       clearInterval(pollInterval);
+      _resolvingQuestions = false;
       await resolveRobberRound(room);
       return;
     }
@@ -1758,6 +1772,7 @@ async function waitAndResolveQuestions(){
     const allAnswered = robberHitPlayers.every(([pid])=>answers[pid]?.done);
     if(allAnswered){
       clearInterval(pollInterval);
+      _resolvingQuestions = false;
       await resolveRobberRound(room);
     }
   }, 1000);
@@ -1943,7 +1958,8 @@ window.resultNextRound = async function(){
       pileResults:null,
       answers:{},
       resultData:null,
-      _resolving:false
+      _resolving:false,
+      _questionResolving:false
     });
     state.round = round+1;
     showGameBoard();
