@@ -1288,27 +1288,51 @@ function showGameBoard(){
   document.getElementById('game-round-type').textContent = isRobberRound ? '⚠️ รอบโจร' : '🌿 รอบปกติ';
   document.getElementById('pile-count-label').textContent = nc.piles;
 
-  // Robber warning banner
+  // Robber warning banner + pile lock
   let warningEl = document.getElementById('robber-warning-banner');
   if(!warningEl){
     warningEl = document.createElement('div');
     warningEl.id = 'robber-warning-banner';
-    warningEl.style.cssText = 'margin-bottom:12px;border-radius:10px;padding:12px 16px;text-align:center;font-weight:700;font-size:0.95rem;transition:all 0.3s;';
+    warningEl.style.cssText = 'margin-bottom:12px;border-radius:10px;padding:14px 16px;text-align:center;font-weight:700;font-size:0.95rem;transition:all 0.3s;';
     const pileSection = document.querySelector('.piles-section');
     pileSection.parentNode.insertBefore(warningEl, pileSection);
   }
+
   if(isRobberRound){
     warningEl.style.display = 'block';
-    warningEl.style.background = 'rgba(232,69,69,0.15)';
-    warningEl.style.border = '1px solid rgba(232,69,69,0.4)';
+    warningEl.style.background = 'rgba(232,69,69,0.2)';
+    warningEl.style.border = '2px solid rgba(232,69,69,0.6)';
     warningEl.style.color = '#ff8080';
-    warningEl.innerHTML = '🚨 <strong>ระวัง! มีโจรซ่อนอยู่ในกองใดกองหนึ่ง</strong> — ถ้าเจอโจรต้องผันคำคุณศัพท์ทันที!';
+
+    // Lock all piles for 3 seconds
+    setTimeout(()=>{
+      document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=true);
+    }, 0);
+
+    let countdown = 3;
+    warningEl.innerHTML = `🚨 <strong>มีโจรซ่อนอยู่!</strong> ระวังให้ดีก่อนเลือกกอง... (${countdown})`;
+
+    const countInterval = setInterval(()=>{
+      countdown--;
+      if(countdown > 0){
+        warningEl.innerHTML = `🚨 <strong>มีโจรซ่อนอยู่!</strong> ระวังให้ดีก่อนเลือกกอง... (${countdown})`;
+      } else {
+        clearInterval(countInterval);
+        warningEl.innerHTML = `⚠️ <strong>มีโจร!</strong> เลือกกองได้แล้ว — ระวังด้วยนะ!`;
+        warningEl.style.background = 'rgba(232,69,69,0.1)';
+        warningEl.style.border = '1px solid rgba(232,69,69,0.3)';
+        // Unlock piles (only if player hasn't chosen yet)
+        if(state.myPileChoice === null){
+          document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=false);
+        }
+      }
+    }, 1000);
   } else {
     warningEl.style.display = 'block';
-    warningEl.style.background = 'rgba(80,200,120,0.08)';
-    warningEl.style.border = '1px solid rgba(80,200,120,0.2)';
+    warningEl.style.background = 'rgba(255,255,255,0.04)';
+    warningEl.style.border = '1px solid rgba(255,255,255,0.08)';
     warningEl.style.color = 'var(--text-dim)';
-    warningEl.innerHTML = '🪨 เจอกรวด = ผันคำ 1 ข้อ ตอบถูก +300,000฿ | เจอเงิน = +300,000฿ ทันที';
+    warningEl.innerHTML = '🪨 เจอกรวด = ผันคำ 1 ข้อ (ไม่ได้เงินไม่ว่าจะถูกหรือผิด) &nbsp;|&nbsp; 💰 เจอเงิน = +300,000฿ ทันที';
   }
 
   updatePlayersStatus();
@@ -1852,11 +1876,11 @@ async function resolveRobberRound(room){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
     } else if(pr.needsQuestion && !pr.hitRobber){
-      // Normal gravel — answer for bonus
+      // Normal gravel — answer question (no money reward either way)
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
       if(correct){
-        moneyChange = MONEY_NORMAL; // ตอบถูก = ได้เงิน
+        moneyChange = 0;
         outcome = 'gravel_correct';
       } else {
         moneyChange = 0;
@@ -1903,7 +1927,10 @@ async function resolveRobberRound(room){
       moneyChange, heartChange, weaponChange,
       outcome, useWeapon,
       newMoney, newHearts, newWeapons,
-      pile: pr.pile
+      pile: pr.pile,
+      robberType, rt_name: rt.name,
+      lossOnFail: rt.lossOnFail, heartLoss: rt.heartLoss,
+      bonusOnWin: rt.bonusOnWin, weaponOnWin: rt.weaponOnWin
     };
   });
 
@@ -1936,13 +1963,13 @@ function showResult(resultData, pileResults, pileChoices){
 
   let icon = '💰', title = 'รอบนี้ผ่านไป', sub = '';
   if(myData){
-    if(myData.outcome==='money') { icon='💰'; title='เจอถุงเงิน!'; sub=fmtMoney(myData.moneyChange); }
-    else if(myData.outcome==='money_robber_fled') { icon='💰'; title='เจอเงิน! โจรหนีไป'; sub=fmtMoney(myData.moneyChange); }
-    else if(myData.outcome==='gravel_correct') { icon='🪨✅'; title='เจอกรวด — ตอบถูก!'; sub=fmtMoney(myData.moneyChange); }
+    if(myData.outcome==='money') { icon='💰'; title='เจอถุงเงิน!'; sub=`+${(myData.moneyChange).toLocaleString()} ฿`; }
+    else if(myData.outcome==='money_robber_fled') { icon='💰'; title='เจอเงิน! โจรหนีไปมือเปล่า'; sub=`+${(myData.moneyChange).toLocaleString()} ฿`; }
+    else if(myData.outcome==='gravel_correct') { icon='🪨✅'; title='เจอกรวด — ตอบถูก!'; sub='ไม่ได้เงิน แต่ทำได้ดี!'; }
     else if(myData.outcome==='gravel_wrong') { icon='🪨❌'; title='เจอกรวด — ตอบผิด'; sub='ไม่ได้เงิน'; }
-    else if(myData.outcome==='robber_won') { icon='⚔️'; title='เอาชนะโจรได้!'; sub=myData.moneyChange>0?fmtMoney(myData.moneyChange):'รักษาเงินไว้ได้'; }
-    else if(myData.outcome==='robber_lost') { icon='😱'; title='โดนโจรขโมย!'; sub=fmtMoney(myData.moneyChange); }
-    else if(myData.outcome==='weapon_blocked') { icon='⚔️'; title='อาวุธป้องกันได้!'; sub='รอดโดยใช้อาวุธ'; }
+    else if(myData.outcome==='robber_won') { icon='🗡️'; title='สู้โจรชนะ!'; sub=''; }
+    else if(myData.outcome==='robber_lost') { icon='😱'; title='โดนโจรขโมย!'; sub=''; }
+    else if(myData.outcome==='weapon_blocked') { icon='🛡️'; title='อาวุธป้องกันได้!'; sub='รอดโดยใช้อาวุธ'; }
     else if(myData.outcome==='gravel_safe') { icon='🪨'; title='เจอกรวด'; sub='ปลอดภัย'; }
     else { icon='🪨'; title='เจอกรวด'; sub='ไม่ได้เงินในรอบนี้'; }
   }
@@ -1954,14 +1981,51 @@ function showResult(resultData, pileResults, pileChoices){
   // Breakdown for my result
   const breakdown = document.getElementById('result-breakdown');
   if(myData){
-    breakdown.innerHTML = `
-      <div class="result-row"><span class="label">เงิน</span><span class="value ${myData.moneyChange>0?'gain':myData.moneyChange<0?'loss':'neutral'}">${myData.moneyChange>0?'+':''}${myData.moneyChange.toLocaleString()} ฿</span></div>
-      ${myData.heartChange?`<div class="result-row"><span class="label">หัวใจ</span><span class="value loss">${myData.heartChange}</span></div>`:''}
-      ${myData.weaponChange>0?`<div class="result-row"><span class="label">อาวุธ</span><span class="value gain">+${myData.weaponChange} ⚔️</span></div>`:''}
-      ${myData.useWeapon?`<div class="result-row"><span class="label">ใช้อาวุธ</span><span class="value neutral">⚔️ -1 (ป้องกันความเสียหาย)</span></div>`:''}
-      <div class="result-row"><span class="label">เงินรวม</span><span class="value gold">${(myData.newMoney||0).toLocaleString()} ฿</span></div>
-      <div class="result-row"><span class="label">หัวใจ</span><span class="value">${heartsDisplay(myData.newHearts||5)}</span></div>
-    `;
+    let rows = '';
+    const o = myData.outcome;
+
+    if(o === 'robber_lost'){
+      const stolen = myData.lossOnFail - (myData.heartLoss > 0 ? (myData.robberType==='boss'?50000:myData.robberType==='gang'?30000:3000) : 0);
+      const medical = myData.lossOnFail - stolen;
+      rows += `<div class="result-row"><span class="label">💸 เงินถูกขโมย</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
+      rows += `<div class="result-row"><span class="label">🏥 ค่ารักษาบาดเจ็บ</span><span class="value loss">-${medical.toLocaleString()} ฿</span></div>`;
+      rows += `<div class="result-row"><span class="label">💔 หัวใจ</span><span class="value loss">${myData.heartChange}</span></div>`;
+    } else if(o === 'robber_won'){
+      if(myData.moneyChange > 0){
+        rows += `<div class="result-row"><span class="label">🎁 โบนัสสู้โจรชนะ</span><span class="value gain">+${myData.moneyChange.toLocaleString()} ฿</span></div>`;
+      } else {
+        rows += `<div class="result-row"><span class="label">🛡️ รักษาเงินไว้ได้</span><span class="value gain">ปลอดภัย</span></div>`;
+      }
+      if(myData.weaponChange > 0){
+        rows += `<div class="result-row"><span class="label">⚔️ ได้รับอาวุธ</span><span class="value gain">+${myData.weaponChange} ชิ้น</span></div>`;
+      }
+    } else if(o === 'weapon_blocked'){
+      rows += `<div class="result-row"><span class="label">⚔️ ใช้อาวุธป้องกัน</span><span class="value neutral">-1 ชิ้น</span></div>`;
+      rows += `<div class="result-row"><span class="label">💰 เงิน</span><span class="value gain">ปลอดภัย ไม่เสียเงิน</span></div>`;
+      rows += `<div class="result-row"><span class="label">❤️ หัวใจ</span><span class="value gain">ปลอดภัย ไม่เสียหัวใจ</span></div>`;
+    } else if(o === 'money_robber_fled'){
+      rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value gain">+${myData.moneyChange.toLocaleString()} ฿</span></div>`;
+      rows += `<div class="result-row"><span class="label">🦹 โจร</span><span class="value neutral">หนีไปมือเปล่า</span></div>`;
+    } else if(o === 'money'){
+      rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value gain">+${myData.moneyChange.toLocaleString()} ฿</span></div>`;
+    } else if(o === 'gravel_correct'){
+      rows += `<div class="result-row"><span class="label">✅ ผันคำถูกต้อง</span><span class="value gain">เยี่ยม!</span></div>`;
+      rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value neutral">+0 ฿</span></div>`;
+    } else if(o === 'gravel_wrong'){
+      rows += `<div class="result-row"><span class="label">❌ ผันคำผิด</span><span class="value loss">เสียใจด้วย</span></div>`;
+      rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value neutral">+0 ฿</span></div>`;
+    }
+
+    rows += `<div class="result-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:4px">
+      <span class="label">🏦 เงินรวม</span>
+      <span class="value gold">${(myData.newMoney||0).toLocaleString()} ฿</span>
+    </div>`;
+    rows += `<div class="result-row"><span class="label">❤️ หัวใจ</span><span class="value">${heartsDisplay(myData.newHearts||5)}</span></div>`;
+    if((myData.newWeapons||0) > 0){
+      rows += `<div class="result-row"><span class="label">⚔️ อาวุธ</span><span class="value">${myData.newWeapons} ชิ้น</span></div>`;
+    }
+
+    breakdown.innerHTML = rows;
   }
 
   // All players
