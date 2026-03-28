@@ -1288,6 +1288,9 @@ function showGameBoard(){
   document.getElementById('game-round-type').textContent = isRobberRound ? '⚠️ รอบโจร' : '🌿 รอบปกติ';
   document.getElementById('pile-count-label').textContent = nc.piles;
 
+  updatePlayersStatus();
+  renderPiles(nc.piles); // render ก่อน แล้วค่อย lock
+
   // Robber warning banner + pile lock
   let warningEl = document.getElementById('robber-warning-banner');
   if(!warningEl){
@@ -1304,10 +1307,8 @@ function showGameBoard(){
     warningEl.style.border = '2px solid rgba(232,69,69,0.6)';
     warningEl.style.color = '#ff8080';
 
-    // Lock all piles for 3 seconds
-    setTimeout(()=>{
-      document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=true);
-    }, 0);
+    // Lock piles immediately after render
+    document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=true);
 
     let countdown = 3;
     warningEl.innerHTML = `🚨 <strong>มีโจรซ่อนอยู่!</strong> ระวังให้ดีก่อนเลือกกอง... (${countdown})`;
@@ -1318,10 +1319,9 @@ function showGameBoard(){
         warningEl.innerHTML = `🚨 <strong>มีโจรซ่อนอยู่!</strong> ระวังให้ดีก่อนเลือกกอง... (${countdown})`;
       } else {
         clearInterval(countInterval);
-        warningEl.innerHTML = `⚠️ <strong>มีโจร!</strong> เลือกกองได้แล้ว — ระวังด้วยนะ!`;
+        warningEl.innerHTML = `⚠️ <strong>มีโจร!</strong> ทุกกองเป็นกรวด — ผันคำถูกจะรอด! เลือกเลย!`;
         warningEl.style.background = 'rgba(232,69,69,0.1)';
         warningEl.style.border = '1px solid rgba(232,69,69,0.3)';
-        // Unlock piles (only if player hasn't chosen yet)
         if(state.myPileChoice === null){
           document.querySelectorAll('.pile-btn').forEach(b=>b.disabled=false);
         }
@@ -1332,11 +1332,8 @@ function showGameBoard(){
     warningEl.style.background = 'rgba(255,255,255,0.04)';
     warningEl.style.border = '1px solid rgba(255,255,255,0.08)';
     warningEl.style.color = 'var(--text-dim)';
-    warningEl.innerHTML = '🪨 เจอกรวด = ผันคำ 1 ข้อ (ไม่ได้เงินไม่ว่าจะถูกหรือผิด) &nbsp;|&nbsp; 💰 เจอเงิน = +300,000฿ ทันที';
+    warningEl.innerHTML = '🪨 เจอกรวด = ผันคำ 1 ข้อ (ไม่ได้เงิน) &nbsp;|&nbsp; 💰 เจอเงิน = +300,000฿ ทันที';
   }
-
-  updatePlayersStatus();
-  renderPiles(nc.piles);
 
   state.myPileChoice = null;
   document.getElementById('waiting-area').style.display = 'flex';
@@ -1516,35 +1513,48 @@ async function resolveRound(room){
     windScatter = true;
   }
 
-  // Determine money piles
-  // Money pile probability reduced on robber rounds
-  let moneyOdds = 0.5; // base 50%
-  if(isRobberRound){
-    const rt = room.roundRobberTypes?.[round] || 'petty';
-    const reduction = ROBBER_TYPE[rt]?.moneyOddsReduction || NIGHT_CONFIG[day].moneyOddsReduction?.petty || 0.25;
-    moneyOdds = moneyOdds * (1 - reduction);
-  }
-
-  // Randomly assign each pile as money or gravel
+  // ===== PILE TYPE ASSIGNMENT =====
   const pileType = {};
-  for(let i=1;i<=pileCount;i++){
-    pileType[i] = Math.random() < moneyOdds ? 'money' : 'gravel';
-  }
-  // Ensure at least 1 money and 1 gravel if >1 pile
-  if(pileCount > 1){
-    const hasMoney = Object.values(pileType).includes('money');
-    const hasGravel = Object.values(pileType).includes('gravel');
-    if(!hasMoney){ const k=Object.keys(pileType)[0]; pileType[k]='money'; }
-    if(!hasGravel){ const k=Object.keys(pileType)[Object.keys(pileType).length-1]; pileType[k]='gravel'; }
+  if(isRobberRound){
+    // รอบโจร: ทุกกองเป็นกรวด ทุกคนต้องผันคำ
+    for(let i=1;i<=pileCount;i++) pileType[i] = 'gravel';
+  } else {
+    // รอบปกติ: สุ่มเงิน/กรวด
+    for(let i=1;i<=pileCount;i++){
+      pileType[i] = Math.random() < 0.5 ? 'money' : 'gravel';
+    }
+    if(pileCount > 1){
+      const hasMoney = Object.values(pileType).includes('money');
+      const hasGravel = Object.values(pileType).includes('gravel');
+      if(!hasMoney){ pileType[1]='money'; }
+      if(!hasGravel){ pileType[pileCount]='gravel'; }
+    }
   }
 
-  // For robber round: which pile has the robber?
+  // รอบโจร: กองไหนซ่อนโจร (ผิดจะเสียเงิน+หัวใจ)
   let robberPile = null;
   const robberType = isRobberRound ? (room.roundRobberTypes?.[round] || 'petty') : null;
   if(isRobberRound){
     robberPile = Math.ceil(Math.random()*pileCount);
-    // Override: robber pile is gravel
-    pileType[robberPile] = 'gravel';
+  }
+
+  // ถ้ากลับมาจาก emergency แล้ว (มี emergencyData) ใช้ข้อมูลเดิมเลย
+  if(isRobberRound && room.emergencyData && room.emergencyData.pileResults){
+    // Re-assign pileResults with new choices
+    const existingED = room.emergencyData;
+    const newPileResults = {};
+    activePlayers.forEach(([pid,p])=>{
+      const chosen = pileChoices[pid];
+      const hitRobber = chosen === existingED.robberPile;
+      newPileResults[pid] = { pile:chosen, type:'gravel', hitRobber: hitRobber || false, needsQuestion: true };
+    });
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase: 'question',
+      pileResults: newPileResults,
+      questionData: existingED.questionData,
+      _resolving: false
+    });
+    return;
   }
 
   // Generate questions for ALL rounds (gravel always asks)
@@ -1572,7 +1582,8 @@ async function resolveRound(room){
     const chosen = pileChoices[pid];
     const type = pileType[chosen] || 'gravel';
     const hitRobber = isRobberRound && chosen === robberPile;
-    const needsQuestion = hitRobber || type === 'gravel'; // gravel always needs question
+    // รอบโจร: ทุกคนต้องผัน | รอบปกติ: เจอกรวดถึงผัน
+    const needsQuestion = isRobberRound ? true : (type === 'gravel');
     pileResults[pid] = { pile:chosen, type, hitRobber: hitRobber || false, needsQuestion };
   });
 
@@ -1629,16 +1640,29 @@ async function calcNormalRoundResult(room, pileResults, pileType){
 
 // ===== EMERGENCY =====
 const ROBBER_TAUNTS = {
-  petty: ['โจรคนเดียวก็กล้ามาแล้ว! 😤','อย่าประมาทนะ ถึงจะแค่ลูกกระจ๊อก! 🦹','โจรแค่คนเดียว...หรือเปล่า? 👀','เขาเล็กแต่ฉลาด ระวังให้ดี! 😏'],
-  gang: ['โจรมาเป็นกลุ่มแล้ว! ใจแข็งเข้าไว้! 😱','หลายคนหลายมือ ระวังกองไหนคือกับดัก! 🦹🦹','กลุ่มโจรมา... คิดดีๆ ก่อนเลือกนะ! 🤔'],
-  boss: ['หัวหน้าโจรมาเอง!! อย่าสะเทือน!! 💀','บอสมาแล้ว!! ผันให้ถูกไม่งั้นเจ็บหนักมาก! 😈','หัวหน้าโจรโผล่!! คืนนี้อันตรายสุดขีด! ⚠️']
+  petty: [
+    { jp:'泥棒が来たぞ！😤', th:'โจรมาแล้ว!! แค่คนเดียว แต่อย่าชะล่าใจนะ!' },
+    { jp:'気をつけろ！🦹', th:'ระวังให้ดี! โจรซ่อนอยู่ในกองหนึ่ง!' },
+    { jp:'逃げるな！戦え！😏', th:'อย่าหนี สู้เลย! ผันให้ถูกแล้วจะรอด!' },
+  ],
+  gang: [
+    { jp:'盗賊団だ！やばい！😱', th:'กลุ่มโจรมาแล้วว!! หลายคนหลายมือ ระวังให้ดีมากๆ!' },
+    { jp:'囲まれた！どうする！🦹🦹', th:'ถูกล้อมแล้ว! คิดให้ดีก่อนเลือกกองนะ! 4 ข้อรอคุณอยู่!' },
+    { jp:'多すぎる！😰', th:'เยอะเกินไป! มาเป็นทีมเลย ผันให้ครบทุกข้อหรือโดนรุมแน่นอน!' },
+  ],
+  boss: [
+    { jp:'ボスが来た！死ぬかも！💀', th:'หัวหน้าโจรมาเองเลย!! ถ้าผิดเสียเงิน 850,000฿ + หัวใจอีก 1 ดวง!!' },
+    { jp:'最強の敵だ！逃げろ！😈', th:'ศัตรูแข็งแกร่งที่สุด! ผันให้ถูกทุกข้อไม่งั้นเจ็บมากกกก!' },
+    { jp:'覚悟しろ！！⚠️', th:'เตรียมใจไว้ได้เลย!! บอสมาเองนะ ไม่ใช่ลูกน้องแล้ว!!' },
+  ]
 };
+
 function showEmergency(data){
   if(!data) return;
   if(document.getElementById('screen-emergency').classList.contains('active')) return;
   const rt = ROBBER_TYPE[data.robberType] || ROBBER_TYPE.petty;
   const taunts = ROBBER_TAUNTS[data.robberType] || ROBBER_TAUNTS.petty;
-  const taunt = taunts[Math.floor(Math.random()*taunts.length)];
+  const tauntObj = taunts[Math.floor(Math.random()*taunts.length)];
 
   const screen = document.getElementById('screen-emergency');
   screen.innerHTML = `
@@ -1646,26 +1670,65 @@ function showEmergency(data){
       <div class="emergency-icon">${rt.emoji}</div>
       <div class="emergency-title">⚠️ มีโจร!</div>
       <div class="robber-type-badge ${rt.badge}">${rt.name}</div>
-      <div style="font-size:1.1rem;color:#ffaaaa;margin:12px 0;font-weight:600">${taunt}</div>
-      <div class="emergency-desc" style="margin-bottom:8px">โจรแอบซ่อนอยู่ในกองใดกองหนึ่ง เฝ้าระวังให้ดี!</div>
-      <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:20px">
-        ${data.robberType==='boss'?'💀 ผิด: เสียเงิน 850,000฿ + หัวใจ -1 | ถูก: +โบนัส + ⚔️ อาวุธ':
-          data.robberType==='gang'?'⚠️ ผิด: เสียเงิน 530,000฿ + หัวใจ -0.5 | ถูก: +50,000฿':
-          '🦹 ผิด: เสียเงิน 303,000฿ + หัวใจ -0.5 | ถูก: รักษาเงินไว้ได้'}
+
+      <div style="background:rgba(232,69,69,0.12);border:1px solid rgba(232,69,69,0.3);border-radius:12px;padding:14px 16px;margin:12px 0;text-align:center">
+        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1.2rem;font-weight:700;color:#ff8080;margin-bottom:6px">${tauntObj.jp}</div>
+        <div style="font-size:0.9rem;color:#ffbbbb;font-weight:600">${tauntObj.th}</div>
       </div>
-      ${state.isHost ? `<button class="btn btn-red" onclick="hostContinueFromEmergency()" style="min-width:160px">ไปต่อ →</button>` :
-        `<div style="color:var(--text-dim);font-size:0.85rem">รอ Host นำไปต่อ...</div>`}
+
+      <div class="emergency-desc" style="margin-bottom:8px">โจรซ่อนอยู่ในกองใดกองหนึ่ง — ทุกคนต้องผันคำคุณศัพท์!</div>
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:20px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px">
+        ${data.robberType==='boss'
+          ?'💀 เจอกองโจร + ผิด → เสีย 850,000฿ + ❤️ -1<br>🗡️ เจอกองโจร + ถูก → รอด + โบนัส + ⚔️ อาวุธ'
+          :data.robberType==='gang'
+          ?'⚠️ เจอกองโจร + ผิด → เสีย 530,000฿ + ❤️ -0.5<br>🗡️ เจอกองโจร + ถูก → รอด + 50,000฿'
+          :'🦹 เจอกองโจร + ผิด → เสีย 303,000฿ + ❤️ -0.5<br>🛡️ เจอกองโจร + ถูก → รอด!'}
+      </div>
+      ${state.isHost
+        ? `<button class="btn btn-red" onclick="hostContinueFromEmergency()" style="min-width:200px;font-size:1rem">ไปเลือกกอง! →</button>`
+        : `<div style="color:var(--text-dim);font-size:0.85rem">รอ Host นำไปต่อ...</div>`}
     </div>
   `;
   showScreen('screen-emergency');
 }
 
 window.hostContinueFromEmergency = async function(){
-  await update(ref(db,'rooms/'+state.roomCode),{ phase:'question' });
+  // กลับไป select เพื่อให้เลือกกอง แต่เก็บ emergencyData ไว้
+  await update(ref(db,'rooms/'+state.roomCode),{
+    phase: 'select',
+    pileChoices: {},
+    _resolving: false
+  });
 };
 
-// ===== QUESTION =====
-function startQuestion(questionData, robberType){
+// Helper: wrap Japanese text with furigana if reading available
+function withFurigana(word, reading){
+  if(!reading || reading === word) return `<span style="font-family:'Noto Sans JP',sans-serif">${word}</span>`;
+  return `<ruby style="font-family:'Noto Sans JP',sans-serif">${word}<rt style="font-size:0.6em;color:var(--text-dim);font-weight:400">${reading}</rt></ruby>`;
+}
+
+// Furigana for conjugated forms (choices)
+function rubyChoice(text){
+  // Simple: wrap any kanji-containing text with furigana placeholder style
+  return `<span style="font-family:'Noto Sans JP',sans-serif;font-size:1.05rem">${text}</span>`;
+}
+
+const CORRECT_MSGS = [
+  { jp:'すごい！完璧です！🎉', th:'เก่งมาก! สมบูรณ์แบบเลย! ครูบีภูมิใจมากกกก!' },
+  { jp:'よくできました！✨', th:'ทำได้ดีมาก! แต่อย่าลืมนะ ยังมีอีกหลายรอบ! 😏' },
+  { jp:'正解！さすがです！👏', th:'ถูกต้อง! นี่แหละที่ควรทำได้! ไม่งั้นเรียนไปทำไม! 😂' },
+  { jp:'パーフェクト！🌟', th:'เพอร์เฟกต์! แต่คนอื่นเขาก็ตอบถูกนะ อย่าดีใจมากไป! 🙃' },
+  { jp:'ナイス！頭いい！😎', th:'เนี๊ยบ! หัวดีจริงๆ วันนี้ดวงดีหรือเปล่าก็ไม่รู้นะ! 🎯' },
+];
+const WRONG_MSGS = [
+  { jp:'あ〜惜しい！もっと練習して！😅', th:'โอ้โห...แบบนี้ก็ไม่รู้เหรอ? กลับไปเปิดหนังสือใหม่เลยยย! 📚' },
+  { jp:'ぜんぜんダメ！もっと覚えて！😤', th:'ผิดหมดเลย!! ตอบอะไรงั้นน!! ไปนั่งทบทวนก่อนนะ! 🤦' },
+  { jp:'不正解...次は頑張って！💪', th:'ผิดค่ะ... ไม่เป็นไร แต่โดนโจรอาจเจ็บกว่านี้นะ! 😈' },
+  { jp:'あれ？これ習いましたよね？😏', th:'เอ๊ะ? นี่เรียนไปแล้วนะ? จำไม่ได้จริงๆ เหรอ?? 🤨' },
+  { jp:'もう一度見直して！📚', th:'ดูใหม่อีกทีนะ!! อย่างนี้สอบตกแน่ๆ เลยยยย! 💀' },
+];
+
+
   if(!questionData || questionData.length === 0) return;
   const rt = ROBBER_TYPE[robberType] || ROBBER_TYPE.petty;
 
@@ -1699,7 +1762,7 @@ function renderQuestion(){
 
   const choicesHTML = qdata.choices.map(c=>`
     <button class="choice-btn" onclick="answerQ('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-      ${c}
+      <span style="font-family:'Noto Sans JP',sans-serif">${c}</span>
     </button>
   `).join('');
 
@@ -1771,12 +1834,9 @@ window.answerQ = function(answer){
     return `<button class="${cls}" disabled>${c}</button>`;
   }).join('');
 
-  const typeClass = qdata.adj.type==='i'?'i-adj':'na-adj';
-  const typeLabel = qdata.adj.type==='i'?'い-adj':'な-adj';
-  const furiganaHTML = `
-    <ruby style="font-size:2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">
-      ${qdata.adj.word}<rt style="font-size:0.7rem;color:var(--text-dim);font-weight:400">${qdata.adj.reading}</rt>
-    </ruby>`;
+  const randMsg = (arr) => arr[Math.floor(Math.random()*arr.length)];
+  const msgObj = isCorrect ? randMsg(CORRECT_MSGS) : randMsg(WRONG_MSGS);
+  const furiganaHTML2 = `<ruby style="font-size:2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">${qdata.adj.word}<rt style="font-size:0.7rem;color:var(--text-dim);font-weight:400">${qdata.adj.reading}</rt></ruby>`;
 
   const isLast = (state.currentQIndex >= total);
   const nextLabel = isLast ? (state.qAnswers.length >= total ? 'ส่งคำตอบ →' : 'ข้อถัดไป →') : 'ข้อถัดไป →';
@@ -1790,12 +1850,15 @@ window.answerQ = function(answer){
       <div class="multi-q-progress">${progressDots}</div>
       <div class="question-box">
         <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
-        <div style="margin:8px 0">${furiganaHTML}</div>
-        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:8px">${typeLabel}</div>
+        <div style="margin:8px 0">${furiganaHTML2}</div>
       </div>
       <div class="choices-grid">${choicesHTML}</div>
-      <div style="text-align:center;padding:10px;font-size:1.1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
-        ${isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด — คำตอบคือ: ${correct}`}
+      <div style="text-align:center;padding:8px;font-size:1.1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
+        ${isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด — คำตอบคือ: <span style="font-family:'Noto Sans JP',sans-serif">${correct}</span>`}
+      </div>
+      <div style="text-align:center;background:${isCorrect?'rgba(80,200,120,0.08)':'rgba(232,69,69,0.08)'};border-radius:10px;padding:10px 12px;margin:4px 0">
+        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'#ff8080'};margin-bottom:4px">${msgObj.jp}</div>
+        <div style="font-size:0.85rem;color:var(--text-dim)">${msgObj.th}</div>
       </div>
       <button class="btn btn-gold" style="width:100%;margin-top:8px" onclick="nextQuestion()">
         ${state.qAnswers.length >= total ? 'ส่งคำตอบ →' : 'ข้อถัดไป →'}
