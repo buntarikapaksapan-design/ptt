@@ -1389,13 +1389,14 @@ function startListeningToGame(){
     if(phase === 'question'){
       if(!document.getElementById('screen-question').classList.contains('active')){
         const pid = state.playerId;
-        const myPile = (room.pileChoices||{})[pid];
         const pr = room.pileResults || {};
         const myResult = pr[pid] || {};
-        if(myResult.hit === 'gravel'){
-          startQuestion(room.questionData, room.roundRobberTypes?.[state.round]);
+        // hitRobber = true means this player hit the robber pile → must answer
+        if(myResult.hitRobber === true){
+          const qData = room.questionData || room.emergencyData?.questionData;
+          startQuestion(qData, room.emergencyData?.robberType || 'petty');
         } else {
-          // Money — show wait
+          // Hit money or safe gravel — just wait
           showWaitingForQuestion();
         }
       }
@@ -1432,13 +1433,17 @@ function updateChoiceIndicators(choices){
 }
 
 function showWaitingForQuestion(){
-  document.getElementById('screen-question').innerHTML = `
-    <div style="text-align:center;padding:40px">
-      <div style="font-size:4rem;margin-bottom:16px">💰</div>
-      <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold)">คุณเจอถุงเงิน!</div>
-      <div style="color:var(--text-dim);margin-top:8px">รอผู้เล่นอื่นตอบคำถาม...</div>
-    </div>
-  `;
+  // Keep screen-question structure intact, just show a waiting overlay inside the panel
+  const panel = document.querySelector('#screen-question .question-panel');
+  if(panel){
+    panel.innerHTML = `
+      <div style="text-align:center;padding:40px">
+        <div style="font-size:4rem;margin-bottom:16px">💰</div>
+        <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold)">คุณเจอถุงเงิน!</div>
+        <div style="color:var(--text-dim);margin-top:8px">รอผู้เล่นอื่นตอบคำถาม...</div>
+      </div>
+    `;
+  }
   showScreen('screen-question');
 }
 
@@ -1715,13 +1720,16 @@ async function submitAnswers(){
   });
 
   showScreen('screen-question');
-  document.getElementById('screen-question').innerHTML = `
-    <div style="text-align:center;padding:40px">
-      <div style="font-size:3rem;margin-bottom:12px">${allCorrect?'✅':'❌'}</div>
-      <div style="font-size:1.2rem;font-weight:700;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'}">${allCorrect?'ตอบถูกทุกข้อ!':'ตอบผิด!'}</div>
-      <div style="color:var(--text-dim);margin-top:8px">รอผลรวมจากทุกคน...</div>
-    </div>
-  `;
+  const panel = document.querySelector('#screen-question .question-panel');
+  if(panel){
+    panel.innerHTML = `
+      <div style="text-align:center;padding:40px">
+        <div style="font-size:3rem;margin-bottom:12px">${allCorrect?'✅':'❌'}</div>
+        <div style="font-size:1.2rem;font-weight:700;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'}">${allCorrect?'ตอบถูกทุกข้อ!':'ตอบผิด!'}</div>
+        <div style="color:var(--text-dim);margin-top:8px">รอผลรวมจากทุกคน...</div>
+      </div>
+    `;
+  }
 
   // Host waits for all to answer, then resolves
   if(state.isHost){
@@ -1730,7 +1738,6 @@ async function submitAnswers(){
 }
 
 async function waitAndResolveQuestions(){
-  // Poll until all gravel-hitters answered
   const pollInterval = setInterval(async()=>{
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     if(!snap.exists()){ clearInterval(pollInterval); return; }
@@ -1738,9 +1745,17 @@ async function waitAndResolveQuestions(){
     const pileResults = room.pileResults || {};
     const answers = room.answers || {};
 
-    const gravelPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.hitRobber||pr.type==='gravel');
-    const allAnswered = gravelPlayers.every(([pid])=>answers[pid]?.done);
+    // Players who actually hit the robber pile need to answer
+    const robberHitPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.hitRobber === true);
 
+    // If nobody hit the robber pile, resolve immediately
+    if(robberHitPlayers.length === 0){
+      clearInterval(pollInterval);
+      await resolveRobberRound(room);
+      return;
+    }
+
+    const allAnswered = robberHitPlayers.every(([pid])=>answers[pid]?.done);
     if(allAnswered){
       clearInterval(pollInterval);
       await resolveRobberRound(room);
@@ -1767,12 +1782,12 @@ async function resolveRobberRound(room){
     let useWeapon = false;
 
     if(pr.type === 'money' || !pr.hitRobber){
-      // Hit money / non-robber gravel in robber round
+      // Hit money or non-robber gravel
       if(pr.type === 'money'){
         moneyChange = rt.moneyGain;
         outcome = 'money_robber_fled';
       } else {
-        // Gravel but not robber pile — treat as normal gravel (no question penalty in robber round)
+        // Safe gravel (not robber pile)
         outcome = 'gravel_safe';
         moneyChange = 0;
       }
