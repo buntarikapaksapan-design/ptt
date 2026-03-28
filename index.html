@@ -1872,22 +1872,10 @@ async function resolveRobberRound(room){
     let useWeapon = false;
 
     if(pr.type === 'money'){
-      // Hit money — robber round: get robber money gain; normal: get MONEY_NORMAL
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
-    } else if(pr.needsQuestion && !pr.hitRobber){
-      // Normal gravel — answer question (no money reward either way)
-      const ans = answers[pid];
-      const correct = ans?.allCorrect || false;
-      if(correct){
-        moneyChange = 0;
-        outcome = 'gravel_correct';
-      } else {
-        moneyChange = 0;
-        outcome = 'gravel_wrong';
-      }
     } else if(pr.hitRobber){
-      // Hit robber pile!
+      // Hit robber pile — must answer
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
       if(correct){
@@ -1907,8 +1895,13 @@ async function resolveRobberRound(room){
           outcome = 'robber_lost';
         }
       }
+    } else if(pr.needsQuestion && !pr.hitRobber){
+      // Normal gravel (non-robber pile in any round) — answer question, no money either way
+      const ans = answers[pid];
+      const correct = ans?.allCorrect || false;
+      outcome = correct ? 'gravel_correct' : 'gravel_wrong';
+      moneyChange = 0;
     } else {
-      // Safe gravel not needing question (shouldn't happen but fallback)
       outcome = 'gravel_safe';
       moneyChange = 0;
     }
@@ -1961,70 +1954,77 @@ function showResult(resultData, pileResults, pileChoices){
   const { perPlayer, isRobberRound, robberType } = resultData;
   const myData = perPlayer?.[state.playerId];
 
+  const GRAVEL_TAUNTS = ['ควรแยกให้ดีกว่านี้นะ! 😏','สายตาต้องฝึกอีกเยอะเลย 👀','กองกรวดอยู่ดีๆ ก็เลือกได้! 🪨','ฝึกให้มากขึ้นนะคะ~ 😅','ครั้งหน้าลองใช้สัญชาตญาณดูบ้าง! 🎯'];
+  const MONEY_ROBBER_TAUNTS = ['โจรมือใหม่หัดปล้น 😂','โชคดีที่โจรยังหน้าใส~ 🦹','โจรเห็นคุณแล้วยังไม่กล้าเลย! 💀','วันนี้ดวงดี ไม่ใช่ฝีมือนะ! 😜','โจรเห็นหน้าแล้วหนีเลย! 🏃'];
+  const randTaunt = (arr) => arr[Math.floor(Math.random()*arr.length)];
+
   let icon = '💰', title = 'รอบนี้ผ่านไป', sub = '';
   if(myData){
-    if(myData.outcome==='money') { icon='💰'; title='เจอถุงเงิน!'; sub=`+${(myData.moneyChange).toLocaleString()} ฿`; }
-    else if(myData.outcome==='money_robber_fled') { icon='💰'; title='เจอเงิน! โจรหนีไปมือเปล่า'; sub=`+${(myData.moneyChange).toLocaleString()} ฿`; }
-    else if(myData.outcome==='gravel_correct') { icon='🪨✅'; title='เจอกรวด — ตอบถูก!'; sub='ไม่ได้เงิน แต่ทำได้ดี!'; }
-    else if(myData.outcome==='gravel_wrong') { icon='🪨❌'; title='เจอกรวด — ตอบผิด'; sub='ไม่ได้เงิน'; }
-    else if(myData.outcome==='robber_won') { icon='🗡️'; title='สู้โจรชนะ!'; sub=''; }
-    else if(myData.outcome==='robber_lost') { icon='😱'; title='โดนโจรขโมย!'; sub=''; }
-    else if(myData.outcome==='weapon_blocked') { icon='🛡️'; title='อาวุธป้องกันได้!'; sub='รอดโดยใช้อาวุธ'; }
-    else if(myData.outcome==='gravel_safe') { icon='🪨'; title='เจอกรวด'; sub='ปลอดภัย'; }
-    else { icon='🪨'; title='เจอกรวด'; sub='ไม่ได้เงินในรอบนี้'; }
+    if(myData.outcome==='money'){
+      icon='💰'; title='เจอถุงเงิน!'; sub=`+${myData.moneyChange.toLocaleString()} ฿`;
+    } else if(myData.outcome==='money_robber_fled'){
+      icon='💰'; title='เจอเงิน!'; sub=randTaunt(MONEY_ROBBER_TAUNTS);
+    } else if(myData.outcome==='gravel_correct'){
+      icon='🪨✅'; title='เจอกรวด — ตอบถูก!'; sub=randTaunt(GRAVEL_TAUNTS);
+    } else if(myData.outcome==='gravel_wrong'){
+      icon='🪨❌'; title='เจอกรวด — ตอบผิด'; sub=randTaunt(GRAVEL_TAUNTS);
+    } else if(myData.outcome==='robber_won'){
+      icon='🗡️'; title='สู้โจรชนะ!'; sub='เก่งมาก!';
+    } else if(myData.outcome==='robber_lost'){
+      icon='😱'; title='โดนโจรขโมย!'; sub='';
+    } else if(myData.outcome==='weapon_blocked'){
+      icon='🛡️'; title='อาวุธป้องกันได้!'; sub='รอดหวุดหวิด!';
+    } else {
+      icon='🪨'; title='เจอกรวด'; sub='';
+    }
   }
 
   document.getElementById('result-icon').textContent = icon;
   document.getElementById('result-title').textContent = title;
   document.getElementById('result-sub').textContent = sub;
 
-  // Breakdown for my result
   const breakdown = document.getElementById('result-breakdown');
   if(myData){
     let rows = '';
     const o = myData.outcome;
+    const rt2 = ROBBER_TYPE[myData.robberType] || ROBBER_TYPE.petty;
 
     if(o === 'robber_lost'){
-      const stolen = myData.lossOnFail - (myData.heartLoss > 0 ? (myData.robberType==='boss'?50000:myData.robberType==='gang'?30000:3000) : 0);
-      const medical = myData.lossOnFail - stolen;
-      rows += `<div class="result-row"><span class="label">💸 เงินถูกขโมย</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
+      const medical = myData.robberType==='boss'?50000:myData.robberType==='gang'?30000:3000;
+      const stolen = myData.lossOnFail - medical;
+      rows += `<div class="result-row"><span class="label">💸 เงินถูกขโมย (${myData.rt_name||'โจร'})</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
       rows += `<div class="result-row"><span class="label">🏥 ค่ารักษาบาดเจ็บ</span><span class="value loss">-${medical.toLocaleString()} ฿</span></div>`;
-      rows += `<div class="result-row"><span class="label">💔 หัวใจ</span><span class="value loss">${myData.heartChange}</span></div>`;
+      rows += `<div class="result-row"><span class="label">💔 หัวใจที่เสีย</span><span class="value loss">${myData.heartChange}</span></div>`;
     } else if(o === 'robber_won'){
+      rows += `<div class="result-row"><span class="label">🛡️ รักษาเงินไว้ได้</span><span class="value gain">ปลอดภัย!</span></div>`;
       if(myData.moneyChange > 0){
-        rows += `<div class="result-row"><span class="label">🎁 โบนัสสู้โจรชนะ</span><span class="value gain">+${myData.moneyChange.toLocaleString()} ฿</span></div>`;
-      } else {
-        rows += `<div class="result-row"><span class="label">🛡️ รักษาเงินไว้ได้</span><span class="value gain">ปลอดภัย</span></div>`;
+        rows += `<div class="result-row"><span class="label">🎁 โบนัสสู้ชนะ</span><span class="value gain">+${myData.moneyChange.toLocaleString()} ฿</span></div>`;
       }
       if(myData.weaponChange > 0){
         rows += `<div class="result-row"><span class="label">⚔️ ได้รับอาวุธ</span><span class="value gain">+${myData.weaponChange} ชิ้น</span></div>`;
       }
     } else if(o === 'weapon_blocked'){
       rows += `<div class="result-row"><span class="label">⚔️ ใช้อาวุธป้องกัน</span><span class="value neutral">-1 ชิ้น</span></div>`;
-      rows += `<div class="result-row"><span class="label">💰 เงิน</span><span class="value gain">ปลอดภัย ไม่เสียเงิน</span></div>`;
-      rows += `<div class="result-row"><span class="label">❤️ หัวใจ</span><span class="value gain">ปลอดภัย ไม่เสียหัวใจ</span></div>`;
+      rows += `<div class="result-row"><span class="label">💰 เงิน + ❤️ หัวใจ</span><span class="value gain">ปลอดภัยทั้งคู่!</span></div>`;
     } else if(o === 'money_robber_fled'){
       rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value gain">+${myData.moneyChange.toLocaleString()} ฿</span></div>`;
-      rows += `<div class="result-row"><span class="label">🦹 โจร</span><span class="value neutral">หนีไปมือเปล่า</span></div>`;
+      rows += `<div class="result-row"><span class="label">🦹 โจร</span><span class="value neutral">หนีไปมือเปล่า!</span></div>`;
     } else if(o === 'money'){
       rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value gain">+${myData.moneyChange.toLocaleString()} ฿</span></div>`;
     } else if(o === 'gravel_correct'){
       rows += `<div class="result-row"><span class="label">✅ ผันคำถูกต้อง</span><span class="value gain">เยี่ยม!</span></div>`;
-      rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value neutral">+0 ฿</span></div>`;
     } else if(o === 'gravel_wrong'){
-      rows += `<div class="result-row"><span class="label">❌ ผันคำผิด</span><span class="value loss">เสียใจด้วย</span></div>`;
-      rows += `<div class="result-row"><span class="label">💰 เงินที่ได้</span><span class="value neutral">+0 ฿</span></div>`;
+      rows += `<div class="result-row"><span class="label">❌ ผันคำผิด</span><span class="value loss">ฝึกเพิ่มนะคะ!</span></div>`;
     }
 
-    rows += `<div class="result-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:4px">
+    rows += `<div class="result-row" style="border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;margin-top:4px">
       <span class="label">🏦 เงินรวม</span>
       <span class="value gold">${(myData.newMoney||0).toLocaleString()} ฿</span>
     </div>`;
     rows += `<div class="result-row"><span class="label">❤️ หัวใจ</span><span class="value">${heartsDisplay(myData.newHearts||5)}</span></div>`;
     if((myData.newWeapons||0) > 0){
-      rows += `<div class="result-row"><span class="label">⚔️ อาวุธ</span><span class="value">${myData.newWeapons} ชิ้น</span></div>`;
+      rows += `<div class="result-row"><span class="label">⚔️ อาวุธ</span><span class="value neutral">${myData.newWeapons} ชิ้น</span></div>`;
     }
-
     breakdown.innerHTML = rows;
   }
 
