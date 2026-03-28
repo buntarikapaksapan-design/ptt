@@ -1225,8 +1225,8 @@ function showNightIntro(day){
 
   // Robber info
   const ri = document.getElementById('night-robber-info');
-  const rc = nc.robberChance;
-  ri.innerHTML = `🦹 โจรคืนนี้: ลูกกระจ๊อก ${(rc.petty*100).toFixed(0)}% | กลุ่มโจร ${(rc.gang*100).toFixed(0)}% | หัวหน้า ${(rc.boss*100).toFixed(0)}%<br>⚡ รอบโจร: ${nc.robberRounds.join(', ')}`;
+  // ไม่แสดงข้อมูลโจรในหน้า night intro
+  document.getElementById('night-robber-info').style.display = 'none';
 
   const btn = document.getElementById('night-continue-btn');
   if(state.isHost){
@@ -1392,21 +1392,23 @@ function startListeningToGame(){
       const pr = room.pileResults || {};
       const myResult = pr[pid] || {};
       const screenActive = document.getElementById('screen-question').classList.contains('active');
+      const qData = room.questionData || room.emergencyData?.questionData;
+      const robberType = room.emergencyData?.robberType || 'petty';
 
       if(!screenActive){
-        if(myResult.hitRobber === true){
-          const qData = room.questionData || room.emergencyData?.questionData;
-          startQuestion(qData, room.emergencyData?.robberType || 'petty');
+        if(myResult.needsQuestion === true){
+          startQuestion(qData, robberType);
         } else {
+          // Hit money — show waiting
           showWaitingForQuestion();
         }
       }
 
-      // Host must always drive resolution
-      // Guard with both local flag and Firebase flag to prevent double-firing
-      if(state.isHost && !_resolvingQuestions && !room._questionResolving && myResult.hitRobber !== true){
+      // Host drives resolution if they don't need to answer (hit money)
+      if(state.isHost && !_resolvingQuestions && myResult.needsQuestion !== true){
         waitAndResolveQuestions();
-      }    }
+      }
+    }
 
     if(phase === 'result'){
       showResult(room.resultData, room.pileResults, room.pileChoices);
@@ -1500,13 +1502,20 @@ async function resolveRound(room){
     pileType[robberPile] = 'gravel';
   }
 
+  // Generate questions for ALL rounds (gravel always asks)
+  const adjs = shuffleArray([...ADJECTIVES]).slice(0,1);
+  const normalQuestionData = adjs.map(a=>{
+    const q = generateQuestion(a);
+    return { adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type}, correct:q.correct, choices:q.choices };
+  });
+
   // Generate questions for robber round
-  let questionData = null;
+  let questionData = normalQuestionData; // default 1 question for normal gravel
   if(isRobberRound){
     const rt = ROBBER_TYPE[robberType];
     const qCount = rt.questionCount;
-    const adjs = shuffleArray([...ADJECTIVES]).slice(0,qCount);
-    questionData = adjs.map(a=>{
+    const radjs = shuffleArray([...ADJECTIVES]).slice(0,qCount);
+    questionData = radjs.map(a=>{
       const q = generateQuestion(a);
       return { adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type}, correct:q.correct, choices:q.choices };
     });
@@ -1518,7 +1527,8 @@ async function resolveRound(room){
     const chosen = pileChoices[pid];
     const type = pileType[chosen] || 'gravel';
     const hitRobber = isRobberRound && chosen === robberPile;
-    pileResults[pid] = { pile:chosen, type, hitRobber: hitRobber || false };
+    const needsQuestion = hitRobber || type === 'gravel'; // gravel always needs question
+    pileResults[pid] = { pile:chosen, type, hitRobber: hitRobber || false, needsQuestion };
   });
 
   // Wind scatter for day 3: re-randomize choice
@@ -1544,48 +1554,35 @@ async function resolveRound(room){
       questionData,
       _resolving: false
     });
-
     // Auto-advance to question after 4s
     setTimeout(async()=>{
       await update(ref(db,'rooms/'+state.roomCode),{ phase:'question' });
     }, 4000);
   } else {
-    // Normal round: skip to result directly
-    // Calculate results
-    const resultData = await calcNormalRoundResult(room, pileResults, pileType);
-    await update(ref(db,'rooms/'+state.roomCode),{
-      phase: 'result',
-      pileResults,
-      pileType,
-      resultData,
-      _resolving: false
-    });
+    // Normal round: check if anyone hit gravel → go to question
+    const anyGravel = Object.values(pileResults).some(pr=>pr.type==='gravel');
+    if(anyGravel){
+      await update(ref(db,'rooms/'+state.roomCode),{
+        phase: 'question',
+        pileResults,
+        questionData: normalQuestionData,
+        _resolving: false
+      });
+    } else {
+      // Everyone got money — resolve directly (no questions needed)
+      await update(ref(db,'rooms/'+state.roomCode),{
+        phase: 'question',  // go through question phase so listener triggers resolve
+        pileResults,
+        questionData: [],
+        _resolving: false
+      });
+    }
   }
 }
 
 async function calcNormalRoundResult(room, pileResults, pileType){
-  const players = room.players;
-  const updates = {};
-  const perPlayer = {};
-
-  Object.entries(pileResults).forEach(([pid,pr])=>{
-    const p = players[pid];
-    if(!p || p.eliminated) return;
-    let moneyChange = 0;
-    let outcome = '';
-    if(pr.type === 'money'){
-      moneyChange = MONEY_NORMAL;
-      outcome = 'money';
-    } else {
-      outcome = 'gravel_no_question';
-      moneyChange = 0;
-    }
-    perPlayer[pid] = { moneyChange, outcome, name:p.name, avatar:p.avatar };
-    updates[`players/${pid}/money`] = (p.money||0) + moneyChange;
-  });
-
-  await update(ref(db,'rooms/'+state.roomCode), updates);
-  return { perPlayer, isRobberRound:false };
+  // Legacy — kept for safety but not called anymore
+  return { perPlayer:{}, isRobberRound:false };
 }
 
 // ===== EMERGENCY =====
@@ -1748,9 +1745,6 @@ async function waitAndResolveQuestions(){
   if(_resolvingQuestions) return;
   _resolvingQuestions = true;
 
-  // Mark in Firebase so duplicate listener calls don't re-trigger
-  await update(ref(db,'rooms/'+state.roomCode),{_questionResolving:true});
-
   const pollInterval = setInterval(async()=>{
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     if(!snap.exists()){ clearInterval(pollInterval); _resolvingQuestions=false; return; }
@@ -1758,30 +1752,35 @@ async function waitAndResolveQuestions(){
     const pileResults = room.pileResults || {};
     const answers = room.answers || {};
 
-    // Players who actually hit the robber pile need to answer
-    const robberHitPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.hitRobber === true);
+    // Anyone with needsQuestion=true must answer
+    const questionPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.needsQuestion===true);
 
-    // If nobody hit the robber pile, resolve immediately
-    if(robberHitPlayers.length === 0){
+    if(questionPlayers.length === 0){
       clearInterval(pollInterval);
       _resolvingQuestions = false;
-      await resolveRobberRound(room);
+      await resolveRound_withAnswers(room);
       return;
     }
 
-    const allAnswered = robberHitPlayers.every(([pid])=>answers[pid]?.done);
+    const allAnswered = questionPlayers.every(([pid])=>answers[pid]?.done);
     if(allAnswered){
       clearInterval(pollInterval);
       _resolvingQuestions = false;
-      await resolveRobberRound(room);
+      await resolveRound_withAnswers(room);
     }
   }, 1000);
+}
+
+// Unified resolver for both normal-gravel and robber rounds
+async function resolveRound_withAnswers(room){
+  await resolveRobberRound(room);
 }
 
 async function resolveRobberRound(room){
   const pileResults = room.pileResults || {};
   const answers = room.answers || {};
   const players = room.players;
+  const isRobberRound = !!room.emergencyData;
   const robberType = room.emergencyData?.robberType || 'petty';
   const rt = ROBBER_TYPE[robberType];
   const updates = {};
@@ -1796,17 +1795,22 @@ async function resolveRobberRound(room){
     let outcome = '';
     let useWeapon = false;
 
-    if(pr.type === 'money' || !pr.hitRobber){
-      // Hit money or non-robber gravel
-      if(pr.type === 'money'){
-        moneyChange = rt.moneyGain;
-        outcome = 'money_robber_fled';
+    if(pr.type === 'money'){
+      // Hit money — robber round: get robber money gain; normal: get MONEY_NORMAL
+      moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
+      outcome = isRobberRound ? 'money_robber_fled' : 'money';
+    } else if(pr.needsQuestion && !pr.hitRobber){
+      // Normal gravel — answer for bonus
+      const ans = answers[pid];
+      const correct = ans?.allCorrect || false;
+      if(correct){
+        moneyChange = MONEY_NORMAL; // ตอบถูก = ได้เงิน
+        outcome = 'gravel_correct';
       } else {
-        // Safe gravel (not robber pile)
-        outcome = 'gravel_safe';
         moneyChange = 0;
+        outcome = 'gravel_wrong';
       }
-    } else {
+    } else if(pr.hitRobber){
       // Hit robber pile!
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
@@ -1815,7 +1819,6 @@ async function resolveRobberRound(room){
         weaponChange = rt.weaponOnWin ? 1 : 0;
         outcome = 'robber_won';
       } else {
-        // Lost to robber
         if((p.weapons||0) > 0){
           useWeapon = true;
           weaponChange = -1;
@@ -1828,6 +1831,10 @@ async function resolveRobberRound(room){
           outcome = 'robber_lost';
         }
       }
+    } else {
+      // Safe gravel not needing question (shouldn't happen but fallback)
+      outcome = 'gravel_safe';
+      moneyChange = 0;
     }
 
     const newMoney = Math.max(0,(p.money||0)+moneyChange);
@@ -1862,9 +1869,10 @@ async function resolveRobberRound(room){
 
   await update(ref(db,'rooms/'+state.roomCode),{
     phase:'result',
-    resultData:{ perPlayer, isRobberRound:true, robberType },
+    resultData:{ perPlayer, isRobberRound, robberType },
     qaLogRound: qaLog,
-    _resolving: false
+    _resolving: false,
+    _questionResolving: false
   });
 }
 
@@ -1878,10 +1886,12 @@ function showResult(resultData, pileResults, pileChoices){
   if(myData){
     if(myData.outcome==='money') { icon='💰'; title='เจอถุงเงิน!'; sub=fmtMoney(myData.moneyChange); }
     else if(myData.outcome==='money_robber_fled') { icon='💰'; title='เจอเงิน! โจรหนีไป'; sub=fmtMoney(myData.moneyChange); }
+    else if(myData.outcome==='gravel_correct') { icon='🪨✅'; title='เจอกรวด — ตอบถูก!'; sub=fmtMoney(myData.moneyChange); }
+    else if(myData.outcome==='gravel_wrong') { icon='🪨❌'; title='เจอกรวด — ตอบผิด'; sub='ไม่ได้เงิน'; }
     else if(myData.outcome==='robber_won') { icon='⚔️'; title='เอาชนะโจรได้!'; sub=myData.moneyChange>0?fmtMoney(myData.moneyChange):'รักษาเงินไว้ได้'; }
     else if(myData.outcome==='robber_lost') { icon='😱'; title='โดนโจรขโมย!'; sub=fmtMoney(myData.moneyChange); }
     else if(myData.outcome==='weapon_blocked') { icon='⚔️'; title='อาวุธป้องกันได้!'; sub='รอดโดยใช้อาวุธ'; }
-    else if(myData.outcome==='gravel_safe') { icon='🪨'; title='เจอกรวด'; sub='รอบโจร — ปลอดภัย'; }
+    else if(myData.outcome==='gravel_safe') { icon='🪨'; title='เจอกรวด'; sub='ปลอดภัย'; }
     else { icon='🪨'; title='เจอกรวด'; sub='ไม่ได้เงินในรอบนี้'; }
   }
 
