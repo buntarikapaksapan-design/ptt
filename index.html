@@ -1288,6 +1288,29 @@ function showGameBoard(){
   document.getElementById('game-round-type').textContent = isRobberRound ? '⚠️ รอบโจร' : '🌿 รอบปกติ';
   document.getElementById('pile-count-label').textContent = nc.piles;
 
+  // Robber warning banner
+  let warningEl = document.getElementById('robber-warning-banner');
+  if(!warningEl){
+    warningEl = document.createElement('div');
+    warningEl.id = 'robber-warning-banner';
+    warningEl.style.cssText = 'margin-bottom:12px;border-radius:10px;padding:12px 16px;text-align:center;font-weight:700;font-size:0.95rem;transition:all 0.3s;';
+    const pileSection = document.querySelector('.piles-section');
+    pileSection.parentNode.insertBefore(warningEl, pileSection);
+  }
+  if(isRobberRound){
+    warningEl.style.display = 'block';
+    warningEl.style.background = 'rgba(232,69,69,0.15)';
+    warningEl.style.border = '1px solid rgba(232,69,69,0.4)';
+    warningEl.style.color = '#ff8080';
+    warningEl.innerHTML = '🚨 <strong>ระวัง! มีโจรซ่อนอยู่ในกองใดกองหนึ่ง</strong> — ถ้าเจอโจรต้องผันคำคุณศัพท์ทันที!';
+  } else {
+    warningEl.style.display = 'block';
+    warningEl.style.background = 'rgba(80,200,120,0.08)';
+    warningEl.style.border = '1px solid rgba(80,200,120,0.2)';
+    warningEl.style.color = 'var(--text-dim)';
+    warningEl.innerHTML = '🪨 เจอกรวด = ผันคำ 1 ข้อ ตอบถูก +300,000฿ | เจอเงิน = +300,000฿ ทันที';
+  }
+
   updatePlayersStatus();
   renderPiles(nc.piles);
 
@@ -1687,34 +1710,59 @@ window.answerQ = function(answer){
   const correct = qdata.correct;
   const isCorrect = answer === correct && answer !== '__timeout__';
 
-  // Update progress dot
-  const dots = document.querySelectorAll('.mq-dot');
-  if(dots[idx]){
-    dots[idx].classList.remove('current');
-    dots[idx].classList.add(isCorrect?'done-correct':'done-wrong');
-  }
-
-  // Color choices
-  document.querySelectorAll('.choice-btn').forEach(btn=>{
-    btn.disabled = true;
-    if(btn.textContent.trim() === correct) btn.classList.add('correct');
-    else if(btn.textContent.trim() === answer && !isCorrect) btn.classList.add('wrong');
-  });
-
-  document.getElementById('q-feedback').textContent = isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด — คำตอบคือ: ${correct}`;
-  document.getElementById('q-feedback').style.color = isCorrect?'var(--accent-green)':'var(--accent-red)';
-
   state.qAnswers.push({ answer, correct: isCorrect, word: qdata.adj.word });
+
+  const total = state.currentQuestions.length;
+  const rt = ROBBER_TYPE[state.currentRobberType] || ROBBER_TYPE.petty;
+  const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
+  const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
+
+  // Rebuild progress dots with current answer
+  const progressDots = Array.from({length:total},(_,i)=>{
+    let cls = 'mq-dot';
+    if(i < state.qAnswers.length) cls += state.qAnswers[i]?.correct ? ' done-correct' : ' done-wrong';
+    else if(i === state.qAnswers.length) cls += ' current';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
+  // Rebuild choices with color feedback
+  const choicesHTML = qdata.choices.map(c=>{
+    let cls = 'choice-btn';
+    if(c === correct) cls += ' correct';
+    else if(c === answer && !isCorrect) cls += ' wrong';
+    return `<button class="${cls}" disabled>${c}</button>`;
+  }).join('');
+
+  const typeClass = qdata.adj.type==='i'?'i-adj':'na-adj';
+  const typeLabel = qdata.adj.type==='i'?'い-adj':'な-adj';
+
+  document.getElementById('screen-question').innerHTML = `
+    <div class="panel question-panel slide-up">
+      <div class="question-header">
+        <span class="q-robber-badge" style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor};padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700">${rt.emoji} ${rt.name}</span>
+        <span style="color:var(--text-dim);font-size:0.85rem">คำถามที่ ${idx+1} / ${total}</span>
+      </div>
+      <div class="multi-q-progress">${progressDots}</div>
+      <div class="question-box">
+        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:8px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
+        <div style="font-size:2.2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">${qdata.adj.word}</div>
+        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:6px">${typeLabel}</div>
+      </div>
+      <div class="choices-grid">${choicesHTML}</div>
+      <div style="text-align:center;padding:10px;font-size:1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
+        ${isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด — คำตอบคือ: ${correct}`}
+      </div>
+    </div>
+  `;
 
   setTimeout(()=>{
     state.currentQIndex++;
     if(state.currentQIndex < state.currentQuestions.length){
       renderQuestion();
     } else {
-      // Done all questions — write answers to Firebase
       submitAnswers();
     }
-  }, 1200);
+  }, 1400);
 };
 
 async function submitAnswers(){
