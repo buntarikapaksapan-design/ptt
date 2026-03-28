@@ -1636,7 +1636,7 @@ function renderQuestion(){
   const prog = document.getElementById('multi-q-progress');
   prog.innerHTML = Array.from({length:total},(_,i)=>{
     let cls = 'mq-dot';
-    if(i < idx) cls += state.qAnswers[i]?.' done-correct':'mq-dot done-wrong';
+    if(i < idx) cls += state.qAnswers[i]?.correct ? ' done-correct' : ' done-wrong';
     if(i === idx) cls += ' current';
     return `<div class="${cls}"></div>`;
   }).join('');
