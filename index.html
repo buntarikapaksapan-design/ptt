@@ -3,1234 +3,2087 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>7 ยามราตรี</title>
-<!-- Firebase CDN -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;600;700;900&family=Noto+Sans+Thai:wght@300;400;500;700&display=swap" rel="stylesheet">
+<title>3 ราตรี — เกมยามเฝ้าถุงเงิน</title>
 <style>
-:root{
-  --night:#08080f;--deep:#0d0d1e;--surface:#121224;--card:#18183a;--border:#28285a;
-  --gold:#c9a84c;--gold-l:#f0d080;--gold-d:#7a6020;
-  --red:#c0392b;--red-l:#e74c3c;--green:#27ae60;--green-l:#2ecc71;
-  --blue:#2980b9;--blue-l:#3498db;--text:#e8e0d0;--dim:#8888aa;
-  --heart:#e74c3c;--weapon:#f39c12;
-}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Noto Sans Thai',sans-serif;background:var(--night);color:var(--text);min-height:100vh;overflow-x:hidden}
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;600;700;900&family=Noto+Sans+JP:wght@400;700&display=swap');
 
-/* stars */
-body::before{content:'';position:fixed;inset:0;pointer-events:none;
-  background:radial-gradient(1px 1px at 8% 15%,rgba(255,255,200,.7) 0%,transparent 100%),
-  radial-gradient(1px 1px at 22% 70%,rgba(255,255,255,.5) 0%,transparent 100%),
-  radial-gradient(1px 1px at 45% 25%,rgba(255,255,200,.6) 0%,transparent 100%),
-  radial-gradient(2px 2px at 60% 80%,rgba(255,255,255,.4) 0%,transparent 100%),
-  radial-gradient(1px 1px at 75% 40%,rgba(255,255,200,.7) 0%,transparent 100%),
-  radial-gradient(1px 1px at 90% 60%,rgba(255,255,255,.5) 0%,transparent 100%),
-  radial-gradient(1px 1px at 33% 50%,rgba(255,255,200,.4) 0%,transparent 100%),
-  radial-gradient(2px 2px at 85% 20%,rgba(255,255,255,.6) 0%,transparent 100%),
-  radial-gradient(1px 1px at 15% 90%,rgba(255,255,200,.5) 0%,transparent 100%),
-  radial-gradient(1px 1px at 55% 10%,rgba(255,255,255,.4) 0%,transparent 100%);z-index:0}
+  :root {
+    --bg-dark: #0a0a1a;
+    --bg-panel: #12122a;
+    --bg-card: #1a1a35;
+    --accent-gold: #f0c040;
+    --accent-red: #e84545;
+    --accent-blue: #4a9eff;
+    --accent-green: #50c878;
+    --accent-purple: #9b59b6;
+    --text-main: #e8e8f5;
+    --text-dim: #8888aa;
+    --border: rgba(255,255,255,0.1);
+    --shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
 
-/* ====== SCREEN SYSTEM ====== */
-.screen{display:none;min-height:100vh;position:relative;z-index:1;flex-direction:column;align-items:center;justify-content:center;padding:16px}
-.screen.active{display:flex}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ====== COMMON ====== */
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
-.btn{width:100%;padding:12px;border-radius:10px;border:none;font-family:'Noto Serif Thai',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.03em}
-.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-l));color:#1a1000}
-.btn-gold:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(201,168,76,.4)}
-.btn-outline{background:transparent;border:1px solid var(--border);color:var(--dim);margin-top:8px}
-.btn-outline:hover{border-color:var(--text);color:var(--text)}
-.btn-red{background:linear-gradient(135deg,var(--red),var(--red-l));color:#fff}
-.btn-green{background:linear-gradient(135deg,var(--green),var(--green-l));color:#fff}
-.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
-.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
-.hidden{display:none!important}
-.gold{color:var(--gold-l)}.red{color:var(--red-l)}.green{color:var(--green-l)}.dim{color:var(--dim)}
+  body {
+    font-family: 'Noto Sans Thai', 'Noto Sans JP', sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-main);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-/* float anim */
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-@keyframes glow{0%,100%{text-shadow:0 0 20px rgba(201,168,76,.4)}50%{text-shadow:0 0 40px rgba(201,168,76,.7),0 0 80px rgba(201,168,76,.3)}}
-@keyframes popIn{from{transform:scale(0.5);opacity:0}to{transform:scale(1);opacity:1}}
-@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  /* ===== STARS BACKGROUND ===== */
+  .stars-bg {
+    position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(ellipse at 20% 50%, #1a0a2e 0%, #0a0a1a 60%);
+    overflow: hidden;
+  }
+  .stars-bg::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 10% 20%, white, transparent),
+      radial-gradient(1px 1px at 30% 60%, white, transparent),
+      radial-gradient(1px 1px at 50% 10%, white, transparent),
+      radial-gradient(1px 1px at 70% 80%, white, transparent),
+      radial-gradient(1px 1px at 90% 40%, white, transparent),
+      radial-gradient(1px 1px at 15% 85%, rgba(255,255,255,0.7), transparent),
+      radial-gradient(1px 1px at 45% 45%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(2px 2px at 80% 20%, rgba(255,255,220,0.8), transparent),
+      radial-gradient(1px 1px at 25% 35%, white, transparent),
+      radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,0.6), transparent);
+    animation: twinkle 4s ease-in-out infinite alternate;
+  }
+  @keyframes twinkle { from { opacity: 0.6; } to { opacity: 1; } }
 
-/* ====== TOAST ====== */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:.9rem;z-index:9999;transition:transform .3s;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.6)}
-.toast.show{transform:translateX(-50%) translateY(0)}
-.toast.ok{border-color:var(--green);color:var(--green-l)}
-.toast.err{border-color:var(--red);color:var(--red-l)}
-.toast.info{border-color:var(--gold);color:var(--gold-l)}
+  /* ===== SCREENS ===== */
+  .screen {
+    position: relative; z-index: 1;
+    display: none;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
-/* ====== LOADING ====== */
-#loadOverlay{position:fixed;inset:0;background:var(--night);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:500}
-#loadOverlay.hidden{display:none}
-.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+  /* ===== SHARED UI ===== */
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
 
-/* ====== LOBBY ====== */
-#lobby{background:radial-gradient(ellipse at 50% 0%,rgba(201,168,76,.07) 0%,transparent 60%)}
-.lobby-wrap{width:100%;max-width:420px;text-align:center}
-.game-logo{font-size:72px;display:block;animation:float 4s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(201,168,76,.3));margin-bottom:12px}
-.game-title{font-family:'Noto Serif Thai',serif;font-size:2rem;font-weight:900;color:var(--gold);animation:glow 3s infinite;margin-bottom:4px}
-.game-sub{color:var(--dim);font-size:.9rem;letter-spacing:.2em;margin-bottom:28px}
-.panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:12px}
-.panel h3{font-family:'Noto Serif Thai',serif;color:var(--gold);font-size:.85rem;letter-spacing:.15em;text-transform:uppercase;margin-bottom:16px}
-.igroup{margin-bottom:12px}
-.igroup label{display:block;font-size:.75rem;color:var(--dim);margin-bottom:5px;text-align:left}
-.igroup input{width:100%;background:var(--deep);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:'Noto Sans Thai',sans-serif;font-size:1rem;transition:border-color .2s}
-.igroup input:focus{outline:none;border-color:var(--gold)}
-.igroup input::placeholder{color:var(--dim)}
-.code-big{text-align:center;font-size:1.5rem;letter-spacing:.4em;text-transform:uppercase}
-.room-code-box{background:var(--deep);border:2px dashed var(--gold-d);border-radius:12px;padding:16px;margin:12px 0;text-align:center}
-.room-code-box .code{font-family:'Noto Serif Thai',serif;font-size:2.2rem;color:var(--gold);letter-spacing:.35em;font-weight:900}
-.room-code-box .label{font-size:.7rem;color:var(--dim);margin-bottom:4px}
-.players-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;min-height:36px;margin:10px 0}
-.chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:.82rem;animation:popIn .3s ease}
-.chip.host{border-color:var(--gold);color:var(--gold)}
-.or-div{color:var(--dim);font-size:.8rem;margin:10px 0}
+  .title-main {
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 900;
+    color: var(--accent-gold);
+    text-shadow: 0 0 30px rgba(240,192,64,0.5);
+    text-align: center;
+    letter-spacing: 2px;
+  }
 
-/* ====== DAY INTRO ====== */
-#dayintro{text-align:center}
-.di-atmos{font-size:80px;display:block;animation:float 3s infinite;margin-bottom:14px}
-.di-badge{display:inline-block;background:var(--gold);color:#1a1000;padding:3px 16px;border-radius:20px;font-family:'Noto Serif Thai',serif;font-size:.78rem;margin-bottom:10px}
-.di-title{font-family:'Noto Serif Thai',serif;font-size:1.8rem;color:var(--gold);margin-bottom:8px}
-.di-desc{color:var(--dim);font-size:.9rem;margin-bottom:20px;line-height:1.7}
-.di-info{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:.82rem;color:var(--dim);line-height:1.9;margin-bottom:20px;max-width:400px;width:100%}
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    text-align: center;
+    margin-top: 8px;
+  }
 
-/* ====== GAME BOARD ====== */
-#gameboard{justify-content:flex-start;padding:10px}
+  .btn {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+  .btn:active { transform: translateY(0); }
+  .btn-gold { background: var(--accent-gold); color: #1a1000; }
+  .btn-red { background: var(--accent-red); color: white; }
+  .btn-blue { background: var(--accent-blue); color: white; }
+  .btn-green { background: var(--accent-green); color: #001a0a; }
+  .btn-ghost { background: transparent; border: 2px solid var(--border); color: var(--text-main); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:6px 2px;margin-bottom:8px}
-.round-label{font-family:'Noto Serif Thai',serif;font-size:.78rem;color:var(--gold)}
-.robber-alert{background:rgba(192,57,43,.2);border:1px solid var(--red);border-radius:6px;padding:3px 10px;font-size:.7rem;color:var(--red-l);animation:pulse 1.5s infinite;display:none}
-.robber-alert.show{display:block}
+  input {
+    background: rgba(255,255,255,0.05);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 1rem;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--accent-gold); }
 
-/* Players bar */
-.players-bar{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
-.pcard{flex:0 0 auto;min-width:80px;max-width:110px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px 6px;text-align:center;position:relative;transition:border-color .3s}
-.pcard.me{border-color:var(--gold)}
-.pcard .pn{font-size:.68rem;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
-.pcard.me .pn{color:var(--gold)}
-.pcard .pm{font-size:.72rem;font-weight:700;color:var(--gold-l);margin-bottom:2px}
-.pcard .ph{font-size:.68rem}
-.pcard .pw{font-size:.62rem;color:var(--weapon)}
-.pcard .done-badge{position:absolute;top:-6px;right:-4px;background:var(--green);color:#fff;font-size:.6rem;padding:1px 5px;border-radius:8px;animation:popIn .2s}
+  .status-msg {
+    text-align: center;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-top: 12px;
+  }
+  .status-msg.info { background: rgba(74,158,255,0.15); color: var(--accent-blue); }
+  .status-msg.success { background: rgba(80,200,120,0.15); color: var(--accent-green); }
+  .status-msg.error { background: rgba(232,69,69,0.15); color: var(--accent-red); }
+  .status-msg.warning { background: rgba(240,192,64,0.15); color: var(--accent-gold); }
 
-/* Piles */
-.piles-label{font-size:.72rem;color:var(--dim);text-align:center;margin-bottom:8px;letter-spacing:.08em}
-.piles-wrap{display:flex;gap:10px;justify-content:center;margin-bottom:10px}
-.pile{flex:1;max-width:130px;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:18px 8px;text-align:center;cursor:pointer;transition:all .2s;position:relative;user-select:none}
-.pile:hover{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
-.pile.selected{border-color:var(--gold-l);background:rgba(201,168,76,.08)}
-.pile.locked{pointer-events:none}
-.pile-ico{font-size:36px;display:block;margin-bottom:6px}
-.pile-name{font-family:'Noto Serif Thai',serif;font-size:.9rem;margin-bottom:2px}
-.pile-sub{font-size:.62rem;color:var(--dim)}
-.pile-count{position:absolute;top:-8px;right:-8px;background:var(--gold);color:#1a1000;font-size:.62rem;font-weight:700;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-.pile.selected::after{content:'✓';position:absolute;bottom:6px;left:50%;transform:translateX(-50%);color:var(--gold);font-size:1rem;animation:popIn .2s}
+  /* Hearts display */
+  .hearts { font-size: 1.1rem; letter-spacing: 2px; }
 
-.confirm-wrap{text-align:center;margin-bottom:8px}
-.btn-confirm{background:linear-gradient(135deg,var(--gold),var(--gold-l));color:#1a1000;border:none;padding:11px 40px;border-radius:10px;font-family:'Noto Serif Thai',serif;font-weight:700;font-size:1rem;cursor:pointer;transition:all .2s;display:none}
-.btn-confirm.show{display:inline-block}
-.btn-confirm:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(201,168,76,.4)}
-.wait-msg{text-align:center;font-size:.78rem;color:var(--dim);min-height:20px}
+  /* ===== SCREEN 1: TITLE ===== */
+  #screen-title .logo-area { margin-bottom: 40px; text-align: center; }
+  #screen-title .moon-emoji { font-size: 4rem; animation: float 3s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
 
-/* My bottom bar */
-.my-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;align-items:center;justify-content:space-around;margin-top:auto}
-.my-stat .sl{font-size:.62rem;color:var(--dim)}
-.my-stat .sv{font-size:.92rem;font-weight:700}
+  .title-panel { width: min(420px, 95vw); }
+  .title-panel .tab-row { display: flex; gap: 8px; margin-bottom: 20px; }
+  .title-panel .tab-row .btn { flex: 1; font-size: 0.9rem; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; margin-bottom: 6px; color: var(--text-dim); font-size: 0.85rem; }
 
-/* ====== HOST DASHBOARD ====== */
-#hostdash{justify-content:flex-start;padding:12px}
-.dash-header{width:100%;max-width:700px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.dash-title{font-family:'Noto Serif Thai',serif;color:var(--gold);font-size:1rem}
-.dash-table{width:100%;max-width:700px;background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px}
-.dash-table table{width:100%;border-collapse:collapse;font-size:.82rem}
-.dash-table th{background:var(--surface);color:var(--dim);padding:8px 12px;text-align:left;font-weight:400;font-size:.72rem}
-.dash-table td{padding:9px 12px;border-top:1px solid var(--border)}
-.dash-table tr:hover td{background:rgba(255,255,255,.02)}
-.rank-num{font-family:'Noto Serif Thai',serif;color:var(--gold);font-weight:700}
-.money-cell{color:var(--gold-l);font-weight:700}
-.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim)}
-.status-dot.picking{background:var(--gold);animation:pulse 1s infinite}
-.status-dot.done{background:var(--green)}
-.status-dot.question{background:var(--red-l);animation:pulse 1s infinite}
+  /* ===== SCREEN 2: HOWTOPLAY ===== */
+  #screen-howtoplay {
+    background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 100%);
+  }
+  .mansion-bg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8rem;
+    opacity: 0.05;
+  }
+  .howtoplay-panel { width: min(600px, 95vw); position: relative; z-index: 2; }
+  .story-text {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(240,192,64,0.3);
+    border-radius: 12px;
+    padding: 20px;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    margin: 16px 0;
+    color: #ddd;
+  }
+  .story-text strong { color: var(--accent-gold); }
 
-/* ====== QUESTION ====== */
-#question{justify-content:flex-start;padding:14px}
-.robber-card{background:linear-gradient(135deg,rgba(192,57,43,.2),rgba(50,10,10,.5));border:1px solid var(--red);border-radius:14px;padding:14px;text-align:center;margin-bottom:12px;width:100%;max-width:500px;animation:slideUp .4s ease}
-.robber-card .rico{font-size:40px;display:block;margin-bottom:4px}
-.robber-card h3{font-family:'Noto Serif Thai',serif;color:var(--red-l);font-size:1rem}
-.robber-card p{font-size:.75rem;color:var(--dim)}
-.q-box{width:100%;max-width:500px}
-.q-prompt{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;margin-bottom:12px}
-.q-word{font-size:2.6rem;font-weight:900;color:var(--gold-l);margin-bottom:4px;line-height:1.2}
-.q-instr{font-size:.82rem;color:var(--dim)}
-.q-meta{font-size:.68rem;color:var(--dim);margin-top:6px;background:var(--deep);display:inline-block;padding:2px 10px;border-radius:10px}
-.timer-wrap{height:4px;background:var(--border);border-radius:2px;margin-bottom:10px;overflow:hidden}
-.timer-bar{height:100%;background:linear-gradient(90deg,var(--green) 0%,var(--gold) 60%,var(--red) 100%);border-radius:2px;transition:width .1s linear}
-.choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.choice{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:14px 8px;color:var(--text);font-family:'Noto Sans Thai',sans-serif;font-size:1.05rem;cursor:pointer;transition:all .2s;min-height:58px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.3}
-.choice:hover:not(:disabled){border-color:var(--blue-l);background:rgba(52,152,219,.1);transform:translateY(-2px)}
-.choice.correct{border-color:var(--green)!important;background:rgba(39,174,96,.2)!important;color:var(--green-l)!important}
-.choice.wrong{border-color:var(--red)!important;background:rgba(192,57,43,.2)!important;color:var(--red-l)!important}
-.choice:disabled{cursor:default}
+  .rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
+  .rule-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 0.82rem;
+  }
+  .rule-card .icon { font-size: 1.4rem; margin-bottom: 4px; }
+  .rule-card .label { color: var(--text-dim); font-size: 0.75rem; }
 
-/* ====== RESULT ====== */
-#result{padding:16px}
-.res-wrap{max-width:460px;width:100%;text-align:center}
-.res-emoji{font-size:70px;display:block;animation:popIn .5s ease;margin-bottom:12px}
-.res-title{font-family:'Noto Serif Thai',serif;font-size:1.5rem;margin-bottom:6px}
-.res-title.good{color:var(--gold-l)}.res-title.bad{color:var(--red-l)}
-.res-detail{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin:14px 0;text-align:left}
-.res-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:.88rem}
-.res-row:last-child{border-bottom:none}
-.res-row .rl{color:var(--dim)}
-.res-row .rv{font-weight:700}
-.rv.plus{color:var(--green-l)}.rv.minus{color:var(--red-l)}.rv.neu{color:var(--text)}
-.correct-box{background:rgba(39,174,96,.1);border:1px solid var(--green);border-radius:8px;padding:10px 14px;margin:8px 0}
-.correct-box .cl{color:var(--dim);font-size:.72rem;margin-bottom:3px}
-.correct-box .ca{color:var(--green-l);font-size:1.2rem;font-weight:700}
-.all-res{display:flex;flex-direction:column;gap:6px;margin:10px 0}
-.ar-row{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;font-size:.82rem;animation:slideUp .3s ease}
-.ar-name{min-width:60px}.ar-pile{color:var(--dim)}.ar-out{font-weight:700}
-.ar-out.plus{color:var(--green-l)}.ar-out.minus{color:var(--red-l)}.ar-out.zero{color:var(--dim)}
+  /* ===== SCREEN 3: LOBBY ===== */
+  #screen-lobby { gap: 20px; }
+  .lobby-panel { width: min(560px, 95vw); }
+  .room-code-display {
+    background: rgba(240,192,64,0.1);
+    border: 2px solid var(--accent-gold);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .room-code-display .code {
+    font-size: 2.5rem;
+    font-weight: 900;
+    letter-spacing: 8px;
+    color: var(--accent-gold);
+  }
+  .players-list { display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+  .player-item {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    transition: all 0.3s;
+  }
+  .player-item .player-avatar { font-size: 1.4rem; }
+  .player-item .player-name { flex: 1; font-weight: 600; }
+  .player-item .host-badge {
+    background: var(--accent-gold);
+    color: #1a1000;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 700;
+  }
+  .player-item.ready { border-color: var(--accent-green); }
 
-/* ====== DAY SUMMARY ====== */
-#daysummary{justify-content:flex-start;padding:16px;overflow-y:auto}
-.sum-wrap{max-width:500px;width:100%}
-.sum-head{text-align:center;padding:18px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:16px}
-.sum-head h2{font-family:'Noto Serif Thai',serif;color:var(--gold);font-size:1.3rem;margin-bottom:4px}
-.rank-list{margin-bottom:14px}
-.rank-item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 14px;margin-bottom:7px}
-.rank-item.r1{border-color:var(--gold);background:rgba(201,168,76,.05)}
-.rank-num2{font-family:'Noto Serif Thai',serif;font-size:1.1rem;color:var(--dim);width:28px;text-align:center}
-.rank-item.r1 .rank-num2{color:var(--gold)}
-.rank-name{flex:1;font-size:.9rem}
-.rank-money{color:var(--gold-l);font-weight:700;font-size:.85rem}
+  /* ===== SCREEN 4: NIGHT INTRO ===== */
+  #screen-night { text-align: center; }
+  .night-icon { font-size: 6rem; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+  .night-title { font-size: 2rem; font-weight: 900; margin: 16px 0 8px; }
+  .night-desc { color: var(--text-dim); max-width: 400px; line-height: 1.6; }
+  .day-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--accent-purple), #6c3483);
+    padding: 6px 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
 
-/* ====== FINAL ====== */
-#final{background:radial-gradient(ellipse at 50% 0%,rgba(201,168,76,.1) 0%,transparent 60%);text-align:center}
-.fin-wrap{max-width:460px;width:100%}
-.fin-title{font-family:'Noto Serif Thai',serif;font-size:1.7rem;color:var(--gold);text-shadow:0 0 30px rgba(201,168,76,.5);margin-bottom:20px}
-.winner-box{background:linear-gradient(135deg,rgba(201,168,76,.15),rgba(201,168,76,.05));border:2px solid var(--gold);border-radius:16px;padding:22px;margin-bottom:18px}
-.winner-box .crown{font-size:44px;display:block;margin-bottom:8px}
-.winner-box h3{font-family:'Noto Serif Thai',serif;color:var(--gold);font-size:1.3rem;margin-bottom:4px}
-.loser-box{background:rgba(192,57,43,.1);border:1px solid var(--red);border-radius:12px;padding:14px;margin-bottom:14px}
-.loser-box h4{color:var(--red-l);font-family:'Noto Serif Thai',serif;margin-bottom:6px}
+  /* ===== SCREEN 5: GAME BOARD ===== */
+  #screen-game { padding: 16px; align-items: stretch; justify-content: flex-start; }
+
+  .game-header {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--bg-panel);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+  .game-header .day-info { font-size: 0.85rem; color: var(--text-dim); }
+  .game-header .round-info { font-size: 1rem; font-weight: 700; color: var(--accent-gold); }
+  .game-header .night-badge { font-size: 1.3rem; }
+
+  .players-status {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .pstatus-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .pstatus-card.is-me { border-color: var(--accent-gold); }
+  .pstatus-card.eliminated { opacity: 0.4; }
+  .pstatus-card .pname { font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pstatus-card .pmoney { font-size: 0.9rem; color: var(--accent-gold); font-weight: 700; }
+  .pstatus-card .phearts { font-size: 0.8rem; margin-top: 2px; }
+  .pstatus-card .pweapon { font-size: 0.75rem; margin-top: 2px; color: var(--accent-blue); }
+
+  /* Piles area */
+  .piles-section { text-align: center; margin-bottom: 20px; }
+  .piles-label { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 12px; }
+  .piles-row {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+  }
+  .pile-btn {
+    width: 100px; height: 120px;
+    background: linear-gradient(160deg, #2a2a4a, #1a1a30);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px;
+    transition: all 0.3s;
+    font-family: inherit;
+    color: var(--text-main);
+    position: relative;
+    overflow: hidden;
+  }
+  .pile-btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.05), transparent 60%);
+  }
+  .pile-btn:hover:not(:disabled) {
+    border-color: var(--accent-gold);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(240,192,64,0.2);
+  }
+  .pile-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+  .pile-btn.selected {
+    border-color: var(--accent-gold);
+    background: linear-gradient(160deg, #2a2a4a, #2a2400);
+    box-shadow: 0 0 20px rgba(240,192,64,0.3);
+  }
+  .pile-btn.revealed-money {
+    border-color: var(--accent-gold);
+    background: linear-gradient(160deg, #2a2400, #1a1800);
+    animation: revealPulse 0.5s ease-out;
+  }
+  .pile-btn.revealed-gravel {
+    border-color: #666;
+    background: linear-gradient(160deg, #222, #111);
+    animation: revealPulse 0.5s ease-out;
+  }
+  @keyframes revealPulse { 0%{transform:scale(1.05)} 100%{transform:scale(1)} }
+  .pile-icon { font-size: 2rem; }
+  .pile-label { font-size: 0.75rem; color: var(--text-dim); }
+  .pile-number { font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); }
+
+  /* Waiting area */
+  .waiting-area {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    min-height: 80px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .waiting-text { color: var(--text-dim); font-size: 0.9rem; }
+  .choice-indicators { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .choice-dot {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem;
+    transition: all 0.3s;
+  }
+  .choice-dot.chosen { border-color: var(--accent-gold); background: rgba(240,192,64,0.15); }
+
+  /* ===== SCREEN 6: EMERGENCY ===== */
+  #screen-emergency {
+    background: radial-gradient(ellipse at center, #2a0a0a, #0a0a0a);
+  }
+  .emergency-panel { text-align: center; max-width: 480px; }
+  .emergency-icon { font-size: 5rem; animation: shake 0.5s ease-in-out infinite; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)}
+  }
+  .emergency-title { font-size: 1.8rem; font-weight: 900; color: var(--accent-red); margin: 16px 0 8px; }
+  .robber-type-badge {
+    display: inline-block;
+    padding: 8px 24px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 1rem;
+    margin: 8px 0 16px;
+  }
+  .robber-type-badge.petty { background: rgba(232,69,69,0.2); border: 1px solid var(--accent-red); color: var(--accent-red); }
+  .robber-type-badge.gang { background: rgba(255,100,0,0.2); border: 1px solid #ff6400; color: #ff6400; }
+  .robber-type-badge.boss { background: rgba(155,89,182,0.2); border: 1px solid var(--accent-purple); color: var(--accent-purple); }
+
+  .emergency-desc { color: var(--text-dim); line-height: 1.6; }
+
+  /* ===== SCREEN 7: QUESTION ===== */
+  #screen-question { }
+  .question-panel { width: min(600px, 95vw); }
+  .question-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+  }
+  .q-robber-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .q-timer {
+    margin-left: auto;
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: var(--accent-red);
+    background: rgba(232,69,69,0.1);
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(232,69,69,0.3);
+    min-width: 50px;
+    text-align: center;
+  }
+
+  .q-count { color: var(--text-dim); font-size: 0.85rem; }
+
+  .question-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .q-prompt { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px; }
+  .q-word {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .q-type-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 2px 10px;
+    border-radius: 10px;
+    margin-top: 6px;
+    font-weight: 600;
+  }
+  .q-type-badge.i-adj { background: rgba(74,158,255,0.2); color: var(--accent-blue); }
+  .q-type-badge.na-adj { background: rgba(155,89,182,0.2); color: var(--accent-purple); }
+
+  .choices-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .choice-btn {
+    background: rgba(255,255,255,0.04);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 10px;
+    font-family: 'Noto Sans JP', inherit;
+    font-size: 1.1rem;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+  }
+  .choice-btn:hover:not(:disabled) { border-color: var(--accent-gold); background: rgba(240,192,64,0.08); }
+  .choice-btn.selected { border-color: var(--accent-blue); background: rgba(74,158,255,0.1); }
+  .choice-btn.correct { border-color: var(--accent-green); background: rgba(80,200,120,0.15); color: var(--accent-green); }
+  .choice-btn.wrong { border-color: var(--accent-red); background: rgba(232,69,69,0.1); color: var(--accent-red); }
+  .choice-btn:disabled { cursor: default; }
+
+  .multi-q-progress {
+    display: flex; gap: 6px; justify-content: center; margin-bottom: 16px;
+  }
+  .mq-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s;
+  }
+  .mq-dot.current { background: var(--accent-gold); transform: scale(1.2); }
+  .mq-dot.done-correct { background: var(--accent-green); }
+  .mq-dot.done-wrong { background: var(--accent-red); }
+
+  /* ===== SCREEN 8: ROUND RESULT ===== */
+  #screen-result { }
+  .result-panel { width: min(560px, 95vw); }
+  .result-icon { font-size: 4rem; text-align: center; margin-bottom: 12px; }
+  .result-title { font-size: 1.5rem; font-weight: 900; text-align: center; margin-bottom: 4px; }
+  .result-sub { color: var(--text-dim); font-size: 0.85rem; text-align: center; margin-bottom: 20px; }
+
+  .result-breakdown {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .result-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .result-row:last-child { border-bottom: none; }
+  .result-row .label { color: var(--text-dim); font-size: 0.85rem; }
+  .result-row .value { font-weight: 700; }
+  .value.gain { color: var(--accent-green); }
+  .value.loss { color: var(--accent-red); }
+  .value.neutral { color: var(--text-main); }
+  .value.gold { color: var(--accent-gold); }
+
+  .all-players-results {
+    display: flex; flex-direction: column; gap: 6px;
+    margin-bottom: 16px;
+  }
+  .apr-item {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  .apr-name { flex: 1; font-weight: 600; }
+  .apr-pile { color: var(--text-dim); }
+  .apr-outcome { font-weight: 700; }
+
+  /* ===== SCREEN 9: DAY SUMMARY ===== */
+  .summary-panel { width: min(600px, 95vw); }
+  .summary-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  .summary-table th {
+    background: rgba(255,255,255,0.05);
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .summary-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.85rem;
+  }
+  .rank-1 td:first-child { color: var(--accent-gold); }
+  .rank-2 td:first-child { color: #ccc; }
+  .rank-3 td:first-child { color: #cd7f32; }
+  .elim-row td { opacity: 0.4; text-decoration: line-through; }
+
+  /* ===== SCREEN 10: FINAL ===== */
+  #screen-final { text-align: center; }
+  .final-panel { width: min(560px, 95vw); }
+  .winner-display {
+    background: linear-gradient(135deg, rgba(240,192,64,0.15), rgba(240,192,64,0.05));
+    border: 2px solid var(--accent-gold);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 20px 0;
+  }
+  .winner-crown { font-size: 3rem; }
+  .winner-name { font-size: 1.6rem; font-weight: 900; color: var(--accent-gold); }
+  .winner-money { font-size: 1.1rem; color: var(--text-dim); }
+
+  .punishment-area {
+    background: rgba(232,69,69,0.08);
+    border: 1px solid rgba(232,69,69,0.3);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+
+  /* ===== ANIMATIONS ===== */
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  .slide-up { animation: slideUp 0.4s ease-out; }
+
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  .fade-in { animation: fadeIn 0.3s ease-out; }
+
+  .spinning { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 480px) {
+    .rule-grid { grid-template-columns: 1fr; }
+    .choices-grid { grid-template-columns: 1fr; }
+    .pile-btn { width: 85px; height: 105px; }
+  }
+
+  /* Notification toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 0.9rem;
+    z-index: 1000;
+    transition: all 0.3s;
+    opacity: 0; pointer-events: none;
+    max-width: 320px;
+    text-align: center;
+  }
+  #toast.show { opacity: 1; }
+
+  /* Weapon used animation */
+  .weapon-flash {
+    position: fixed; inset: 0; z-index: 500;
+    background: radial-gradient(circle, rgba(74,158,255,0.6), transparent 70%);
+    pointer-events: none;
+    animation: weaponFlash 0.8s ease-out forwards;
+  }
+  @keyframes weaponFlash { 0%{opacity:1} 100%{opacity:0} }
 </style>
 </head>
 <body>
 
-<div id="loadOverlay">
-  <div class="spinner"></div>
-  <p style="color:var(--dim);font-size:.9rem">กำลังเชื่อมต่อ...</p>
-</div>
-<div class="toast" id="toast"></div>
+<div class="stars-bg"></div>
+<div id="toast"></div>
 
-<!-- ==================== LOBBY ==================== -->
-<div id="lobby" class="screen active">
-  <div class="lobby-wrap">
-    <span class="game-logo">🏚️</span>
-    <h1 class="game-title">7 ยามราตรี</h1>
-    <p class="game-sub">— เกมผันคำคุณศัพท์ญี่ปุ่น —</p>
+<!-- ==================== SCREEN: TITLE ==================== -->
+<div id="screen-title" class="screen active">
+  <div class="logo-area slide-up">
+    <div class="moon-emoji">🌕</div>
+    <div class="title-main">3 ราตรี</div>
+    <div class="subtitle">เกมยามเฝ้าถุงเงินบีเซนเซย์</div>
+  </div>
 
-    <!-- Create/Join Form -->
-    <div class="panel" id="pCreate">
-      <h3>⚔️ สร้างหรือเข้าร่วม</h3>
-      <div class="igroup">
-        <label>ชื่อผู้เล่น</label>
-        <input id="inName" type="text" placeholder="ชื่อของคุณ" maxlength="12">
-      </div>
-      <button class="btn btn-gold" onclick="createRoom()">+ สร้างห้อง (Host)</button>
-      <div class="or-div">— หรือ —</div>
-      <div class="igroup">
-        <label>รหัสห้อง (4 ตัว)</label>
-        <input id="inCode" type="text" placeholder="XXXX" maxlength="4" class="code-big">
-      </div>
-      <button class="btn btn-outline" onclick="joinRoom()">เข้าร่วมห้อง</button>
+  <div class="panel title-panel slide-up">
+    <div class="tab-row">
+      <button class="btn btn-gold" onclick="showTab('tab-create')">🏠 สร้างห้อง</button>
+      <button class="btn btn-ghost" onclick="showTab('tab-join')">🚪 เข้าห้อง</button>
     </div>
 
-    <!-- Waiting Room -->
-    <div class="panel hidden" id="pWaiting">
-      <h3>🌙 รอผู้เล่น</h3>
-      <div class="room-code-box">
-        <div class="label">รหัสห้อง — แชร์ให้เพื่อน</div>
-        <div class="code" id="showCode">----</div>
+    <div id="tab-create" class="tab-content active">
+      <div class="form-group">
+        <label>ชื่อของคุณ</label>
+        <input id="create-name" type="text" placeholder="เช่น ครูบี, นักเรียน A..." maxlength="12">
       </div>
-      <div class="players-chips" id="playersChips"></div>
-      <div id="hostStartArea" class="hidden mt12">
-        <button class="btn btn-gold" onclick="hostStartGame()">🌙 เริ่มเกม!</button>
-        <p style="font-size:.72rem;color:var(--dim);margin-top:6px;text-align:center">ต้องการอย่างน้อย 2 คน</p>
+      <button class="btn btn-gold" style="width:100%" onclick="createRoom()">✨ สร้างห้องเกม</button>
+    </div>
+
+    <div id="tab-join" class="tab-content">
+      <div class="form-group">
+        <label>ชื่อของคุณ</label>
+        <input id="join-name" type="text" placeholder="ใส่ชื่อเล่น..." maxlength="12">
       </div>
-      <p id="guestWait" class="hidden" style="font-size:.82rem;color:var(--dim);text-align:center;margin-top:10px">รอ Host เริ่มเกม...</p>
+      <div class="form-group">
+        <label>รหัสห้อง (4 ตัวอักษร)</label>
+        <input id="join-code" type="text" placeholder="XXXX" maxlength="4" style="text-transform:uppercase; font-size:1.3rem; letter-spacing:6px; text-align:center">
+      </div>
+      <button class="btn btn-blue" style="width:100%" onclick="joinRoom()">🚪 เข้าร่วมเกม</button>
+    </div>
+
+    <div id="title-status" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- ==================== SCREEN: HOW TO PLAY ==================== -->
+<div id="screen-howtoplay" class="screen">
+  <div class="mansion-bg">🏚️</div>
+  <div class="panel howtoplay-panel slide-up" style="max-height:90vh;overflow-y:auto">
+    <div class="title-main" style="font-size:1.8rem;margin-bottom:4px">📜 วิธีเล่น</div>
+    <div class="story-text">
+      <strong>'คุณ'</strong> มาสมัครเป็นยามเฝ้าถุงเงินให้บีเซนเซย์จำนวน <strong>10,000,000 บาท</strong><br><br>
+      คุณมีหน้าที่<strong>แยกถุงเงินออกจากถุงกรวด</strong>ให้เรียบร้อย และต้องระวังโจรด้วย<br>
+      หากถูกโจรขโมยเงินไป เงินจะหายไปเรื่อยๆ<br><br>
+      เมื่อครบ <strong>3 คืน</strong> ใครได้เงิน<strong>น้อยสุด</strong> ต้องถูกลงโทษ!
+    </div>
+
+    <div class="rule-grid">
+      <div class="rule-card">
+        <div class="icon">💰</div>
+        <div>เลือก 1 กอง ถ้าเจอเงิน → <strong style="color:var(--accent-gold)">รับ 300,000</strong></div>
+      </div>
+      <div class="rule-card">
+        <div class="icon">🪨</div>
+        <div>เจอกรวด → <strong>ผันคำคุณศัพท์</strong><br>ตอบถูก = รับโบนัส</div>
+      </div>
+      <div class="rule-card">
+        <div class="icon">🦹</div>
+        <div>รอบโจร! ตอบผิด → <strong style="color:var(--accent-red)">เสียเงิน + หัวใจ</strong></div>
+      </div>
+      <div class="rule-card">
+        <div class="icon">⚔️</div>
+        <div>ชนะหัวหน้าโจร → ได้<strong style="color:var(--accent-blue)">อาวุธ</strong> ป้องกันการโจมตี</div>
+      </div>
+      <div class="rule-card">
+        <div class="icon">❤️</div>
+        <div>หัวใจ 5 ดวง หมด = <strong style="color:var(--accent-red)">แพ้ทันที</strong></div>
+      </div>
+      <div class="rule-card">
+        <div class="icon">🏆</div>
+        <div>อยู่รอด 3 คืน + <strong style="color:var(--accent-gold)">เงินมากสุด = ชนะ!</strong></div>
+      </div>
+    </div>
+
+    <div style="background:rgba(155,89,182,0.1);border:1px solid rgba(155,89,182,0.3);border-radius:10px;padding:12px;font-size:0.82rem;color:#bbb;margin:8px 0">
+      ⚠️ ผู้ที่เงินน้อยสุดเมื่อจบเกม จะต้องผันคำคุณศัพท์ 70 คำ!
+    </div>
+
+    <button id="howtoplay-btn" class="btn btn-gold" style="width:100%;margin-top:12px" onclick="proceedFromHowToPlay()">
+      🌕 เริ่มเกม!
+    </button>
+  </div>
+</div>
+
+<!-- ==================== SCREEN: LOBBY ==================== -->
+<div id="screen-lobby" class="screen">
+  <div class="panel lobby-panel slide-up">
+    <div class="room-code-display">
+      <div style="color:var(--text-dim);font-size:0.8rem;margin-bottom:4px">รหัสห้อง</div>
+      <div class="code" id="lobby-room-code">----</div>
+      <div style="color:var(--text-dim);font-size:0.75rem;margin-top:4px">แชร์ให้เพื่อนพิมพ์รหัสนี้เพื่อเข้าร่วม</div>
+    </div>
+
+    <div style="color:var(--text-dim);font-size:0.85rem;margin-bottom:10px">ผู้เล่น (<span id="player-count">0</span> คน)</div>
+    <div class="players-list" id="players-list"></div>
+
+    <div id="lobby-status" class="status-msg info" style="margin-top:12px">รอผู้เล่นเข้าร่วม...</div>
+
+    <div id="host-controls" style="display:none;margin-top:16px">
+      <button class="btn btn-gold" style="width:100%" onclick="hostStartGame()" id="start-btn">🌙 เริ่มเกม</button>
+      <div style="color:var(--text-dim);font-size:0.75rem;text-align:center;margin-top:6px">ต้องมีผู้เล่น 1 คนขึ้นไป</div>
     </div>
   </div>
 </div>
 
-<!-- ==================== DAY INTRO ==================== -->
-<div id="dayintro" class="screen">
-  <span class="di-atmos" id="diAtmos">🌕</span>
-  <div class="di-badge" id="diBadge">คืนที่ 1</div>
-  <h2 class="di-title" id="diTitle">คืนจันทร์เต็มดวง</h2>
-  <p class="di-desc" id="diDesc">ค่ำคืนที่จันทร์เต็มดวงเหมาะมากสำหรับการออกมาขโมย</p>
-  <div class="di-info" id="diInfo"></div>
-  <button class="btn btn-gold" id="diBtnHost" onclick="hostBeginDay()" style="max-width:300px;width:100%">🌙 เริ่มคืนนี้!</button>
-  <p class="hidden dim mt12" id="diGuestMsg">รอ Host เริ่ม...</p>
+<!-- ==================== SCREEN: NIGHT INTRO ==================== -->
+<div id="screen-night" class="screen">
+  <div class="day-badge" id="night-day-badge">วันที่ 1</div>
+  <div class="night-icon" id="night-icon">🌕</div>
+  <div class="night-title" id="night-title">คืนจันทร์เต็มดวง</div>
+  <div class="night-desc" id="night-desc">ค่ำคืนที่จันทร์เต็มดวงเหมาะมากสำหรับการออกมาขโมย</div>
+  <div id="night-robber-info" style="margin-top:16px;padding:10px;background:rgba(232,69,69,0.1);border:1px solid rgba(232,69,69,0.2);border-radius:8px;color:var(--text-dim);font-size:0.8rem;max-width:380px;text-align:center"></div>
+  <button id="night-continue-btn" class="btn btn-gold" style="margin-top:24px;min-width:160px;display:none" onclick="nightIntroDone()">เตรียมพร้อม →</button>
 </div>
 
-<!-- ==================== GAME BOARD ==================== -->
-<div id="gameboard" class="screen">
-  <div class="topbar" style="width:100%;max-width:600px">
-    <span class="round-label" id="topRound">Day 1 · รอบ 1/10</span>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span id="topNight" style="font-size:1.1rem">🌕</span>
-      <span class="robber-alert" id="robberAlert">⚠️ โจรโผล่!</span>
-      <button onclick="showHostDash()" style="background:rgba(201,168,76,.15);border:1px solid var(--gold-d);color:var(--gold);border-radius:6px;padding:3px 8px;font-size:.68rem;cursor:pointer" id="dashBtn" class="hidden">📊 ดูคะแนน</button>
+<!-- ==================== SCREEN: EMERGENCY (ROBBER ALERT) ==================== -->
+<div id="screen-emergency" class="screen">
+  <div class="emergency-panel slide-up">
+    <div class="emergency-icon" id="emg-icon">🚨</div>
+    <div class="emergency-title">⚠️ มีโจร!</div>
+    <div id="emg-robber-badge" class="robber-type-badge petty">โจรลูกกระจ๊อก</div>
+    <div class="emergency-desc" id="emg-desc">โจรแอบซ่อนอยู่ในกองหนึ่ง ระวังให้ดี!</div>
+    <div id="emg-extra-info" style="margin:16px 0;font-size:0.85rem;color:var(--text-dim)"></div>
+    <div style="margin-top:20px;color:var(--text-dim);font-size:0.8rem">กำลังนำไปยังกระดาน...</div>
+  </div>
+</div>
+
+<!-- ==================== SCREEN: GAME BOARD ==================== -->
+<div id="screen-game" class="screen">
+  <div class="game-header">
+    <span class="night-badge" id="game-night-badge">🌕</span>
+    <div>
+      <div class="day-info" id="game-day-info">Day 1 — คืนจันทร์เต็มดวง</div>
+      <div class="round-info" id="game-round-info">รอบที่ 1 / 10</div>
+    </div>
+    <div style="margin-left:auto;font-size:0.8rem;color:var(--text-dim)" id="game-round-type"></div>
+  </div>
+
+  <div class="players-status" id="game-players-status"></div>
+
+  <div class="piles-section">
+    <div class="piles-label" id="piles-instruction">เลือก 1 กองจาก <span id="pile-count-label">3</span> กอง</div>
+    <div class="piles-row" id="piles-row"></div>
+  </div>
+
+  <div class="waiting-area" id="waiting-area">
+    <div>
+      <div class="waiting-text" id="waiting-text">รอผู้เล่นทุกคนเลือก...</div>
+      <div class="choice-indicators" id="choice-indicators" style="margin-top:10px"></div>
     </div>
   </div>
+</div>
 
-  <div class="players-bar" id="playersBar" style="width:100%;max-width:600px"></div>
+<!-- ==================== SCREEN: QUESTION ==================== -->
+<div id="screen-question" class="screen">
+  <div class="panel question-panel slide-up">
+    <div class="question-header">
+      <span class="q-robber-badge" id="q-robber-badge" style="background:rgba(232,69,69,0.15);color:var(--accent-red);border:1px solid rgba(232,69,69,0.3)">🦹</span>
+      <span class="q-count" id="q-count">คำถามที่ 1</span>
+      <div class="q-timer" id="q-timer">15</div>
+    </div>
 
-  <div style="width:100%;max-width:600px">
-    <p class="piles-label" id="pilesLabel">เลือก 1 กอง — ลากเงินเจ้านายกลับมา!</p>
-    <div class="piles-wrap" id="pilesWrap"></div>
-  </div>
+    <div class="multi-q-progress" id="multi-q-progress"></div>
 
-  <div class="confirm-wrap">
-    <button class="btn-confirm" id="btnConfirm" onclick="confirmChoice()">✓ ยืนยันกอง</button>
-  </div>
-  <p class="wait-msg" id="waitMsg"></p>
+    <div class="question-box">
+      <div class="q-prompt" id="q-prompt">ผันเป็นรูปปฏิเสธปัจจุบัน</div>
+      <div class="q-word" id="q-word">大きい</div>
+      <div id="q-type-badge" class="q-type-badge i-adj">い-adj</div>
+    </div>
 
-  <!-- My status bottom -->
-  <div class="my-bar" style="width:100%;max-width:600px">
-    <div class="my-stat"><div class="sl">ชื่อ</div><div class="sv gold" id="myNameLabel" style="font-size:.82rem">—</div></div>
-    <div class="my-stat"><div class="sl">💰 เงิน</div><div class="sv gold" id="myMoneyLabel">150,000,000</div></div>
-    <div class="my-stat"><div class="sl">❤️ หัวใจ</div><div class="sv" style="color:var(--heart)" id="myHeartsLabel">❤️❤️❤️❤️❤️</div></div>
-    <div class="my-stat"><div class="sl">⚔️ อาวุธ</div><div class="sv" style="color:var(--weapon)" id="myWeaponLabel">0</div></div>
+    <div class="choices-grid" id="choices-grid"></div>
+
+    <div id="q-feedback" style="text-align:center;padding:10px;font-size:0.9rem;min-height:40px"></div>
   </div>
 </div>
 
-<!-- ==================== HOST DASHBOARD ==================== -->
-<div id="hostdash" class="screen">
-  <div class="dash-header" style="width:100%;max-width:700px">
-    <h2 class="dash-title">📊 คะแนน Real-time</h2>
-    <button class="btn btn-outline" style="width:auto;padding:6px 16px;font-size:.82rem" onclick="closeDash()">← กลับ</button>
+<!-- ==================== SCREEN: ROUND RESULT ==================== -->
+<div id="screen-result" class="screen">
+  <div class="panel result-panel slide-up">
+    <div class="result-icon" id="result-icon">💰</div>
+    <div class="result-title" id="result-title">เจอถุงเงิน!</div>
+    <div class="result-sub" id="result-sub">รอบปกติ</div>
+
+    <div class="result-breakdown" id="result-breakdown"></div>
+
+    <div style="color:var(--text-dim);font-size:0.85rem;margin:8px 0">ผลของผู้เล่นทุกคน</div>
+    <div class="all-players-results" id="all-players-results"></div>
+
+    <div id="result-next-info" style="text-align:center;color:var(--text-dim);font-size:0.8rem;margin-top:12px"></div>
+    <button id="result-next-btn" class="btn btn-gold" style="width:100%;margin-top:12px;display:none" onclick="resultNextRound()">รอบถัดไป →</button>
   </div>
-  <div class="dash-table">
-    <table>
-      <thead><tr><th>#</th><th>ชื่อ</th><th>💰 เงิน</th><th>❤️</th><th>⚔️</th><th>สถานะ</th></tr></thead>
-      <tbody id="dashBody"></tbody>
+</div>
+
+<!-- ==================== SCREEN: DAY SUMMARY ==================== -->
+<div id="screen-summary" class="screen">
+  <div class="panel summary-panel slide-up" style="max-height:90vh;overflow-y:auto">
+    <div class="title-main" style="font-size:1.8rem" id="summary-day-title">📊 สรุปวันที่ 1</div>
+    <div id="summary-night-emoji" style="font-size:1.3rem;text-align:center;margin:8px 0">🌕</div>
+
+    <table class="summary-table" id="summary-table">
+      <thead>
+        <tr>
+          <th>อันดับ</th>
+          <th>ผู้เล่น</th>
+          <th>เงิน</th>
+          <th>❤️</th>
+          <th>⚔️</th>
+        </tr>
+      </thead>
+      <tbody id="summary-tbody"></tbody>
     </table>
-  </div>
-  <div style="width:100%;max-width:700px">
-    <p style="font-size:.72rem;color:var(--dim);text-align:center;margin-bottom:8px">Refresh ทุก 3 วินาทีอัตโนมัติ</p>
-    <button class="btn btn-gold" onclick="hostForceNext()" id="dashNextBtn">▶ บังคับไปรอบถัดไป</button>
+
+    <div style="margin:12px 0;color:var(--text-dim);font-size:0.85rem">ผลการตอบคำถาม</div>
+    <div id="summary-qa-log" style="font-size:0.8rem;display:flex;flex-direction:column;gap:4px"></div>
+
+    <button id="summary-next-btn" class="btn btn-gold" style="width:100%;margin-top:16px;display:none" onclick="summaryNext()">
+      <span id="summary-next-label">คืนถัดไป →</span>
+    </button>
   </div>
 </div>
 
-<!-- ==================== QUESTION ==================== -->
-<div id="question" class="screen">
-  <div class="robber-card" id="robberCard">
-    <span class="rico" id="robberIco">🥷</span>
-    <h3 id="robberTitle">โจรโผล่!</h3>
-    <p id="robberSub">ลูกกระจ๊อก 🟢</p>
-  </div>
-  <div class="q-box">
-    <div class="q-prompt">
-      <div class="q-word" id="qWord">大きい</div>
-      <div class="q-instr">ผันเป็นรูปปฏิเสธ</div>
-      <div class="q-meta" id="qMeta">ข้อ 1/1</div>
-    </div>
-    <div class="timer-wrap"><div class="timer-bar" id="timerBar" style="width:100%"></div></div>
-    <div class="choices" id="choicesGrid"></div>
-    <p style="text-align:center;font-size:.75rem;color:var(--dim);margin-top:8px" id="qWaitMsg"></p>
-  </div>
-</div>
+<!-- ==================== SCREEN: FINAL ==================== -->
+<div id="screen-final" class="screen">
+  <div class="panel final-panel slide-up" style="max-height:90vh;overflow-y:auto">
+    <div class="title-main" style="font-size:2rem">🏁 จบเกม!</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;margin-bottom:16px">ครบ 3 คืนแล้ว</div>
 
-<!-- ==================== RESULT ==================== -->
-<div id="result" class="screen">
-  <div class="res-wrap">
-    <span class="res-emoji" id="resEmoji">💰</span>
-    <h2 class="res-title good" id="resTitle">ได้เงิน!</h2>
-    <p style="color:var(--dim);font-size:.85rem;margin-bottom:4px" id="resSub"></p>
-    <div class="res-detail" id="resDetail"></div>
-    <div class="correct-box hidden" id="correctBox">
-      <div class="cl">คำตอบที่ถูกต้องคือ</div>
-      <div class="ca" id="correctAns">—</div>
+    <div class="winner-display" id="winner-display">
+      <div class="winner-crown">👑</div>
+      <div class="winner-name" id="winner-name">—</div>
+      <div class="winner-money" id="winner-money">0 บาท</div>
     </div>
-    <h4 style="font-size:.78rem;color:var(--dim);margin:12px 0 6px">ผลรอบนี้ทุกคน</h4>
-    <div class="all-res" id="allRes"></div>
-    <button class="btn btn-gold mt16 hidden" id="btnNext" onclick="playerReadyNext()">พร้อมรอบถัดไป ✓</button>
-    <p style="font-size:.75rem;color:var(--dim);margin-top:6px;text-align:center" id="nextWaitMsg">รอผู้เล่นทุกคนกดพร้อม...</p>
-  </div>
-</div>
 
-<!-- ==================== DAY SUMMARY ==================== -->
-<div id="daysummary" class="screen">
-  <div class="sum-wrap">
-    <div class="sum-head">
-      <h2 id="sumTitle">สรุปคืนที่ 1</h2>
-      <p style="color:var(--dim);font-size:.85rem" id="sumNight">🌕 คืนจันทร์เต็มดวง</p>
-    </div>
-    <h4 style="font-size:.78rem;color:var(--dim);margin-bottom:8px">อันดับ</h4>
-    <div class="rank-list" id="sumRanking"></div>
-    <button class="btn btn-gold hidden" id="btnSumNext" onclick="hostNextDay()">คืนถัดไป →</button>
-    <p style="font-size:.72rem;color:var(--dim);margin-top:6px;text-align:center" id="sumGuestMsg" class="hidden">รอ Host ดำเนินต่อ...</p>
-  </div>
-</div>
+    <table class="summary-table" id="final-table">
+      <thead>
+        <tr><th>อันดับ</th><th>ผู้เล่น</th><th>เงิน</th><th>❤️</th></tr>
+      </thead>
+      <tbody id="final-tbody"></tbody>
+    </table>
 
-<!-- ==================== FINAL ==================== -->
-<div id="final" class="screen">
-  <div class="fin-wrap">
-    <h1 class="fin-title">🌙 จบเกม!</h1>
-    <div class="winner-box">
-      <span class="crown">👑</span>
-      <h3 id="winName">—</h3>
-      <p style="color:var(--dim);font-size:.9rem" id="winMoney">—</p>
+    <div class="punishment-area" id="punishment-area">
+      <div style="color:var(--accent-red);font-weight:700;font-size:1rem;margin-bottom:8px">🔴 การลงโทษ</div>
+      <div id="punishment-text" style="font-size:0.9rem;color:#ddd"></div>
     </div>
-    <h4 style="font-size:.78rem;color:var(--dim);margin-bottom:8px">อันดับสุดท้าย</h4>
-    <div class="rank-list" id="finalRanking"></div>
-    <div class="loser-box mt12">
-      <h4>💀 โทษผู้แพ้</h4>
-      <p style="color:var(--dim);font-size:.85rem" id="loserText">—</p>
-    </div>
-    <button class="btn btn-gold mt16" onclick="location.reload()">🏚️ เล่นใหม่</button>
+
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px" onclick="backToTitle()">🏠 กลับหน้าหลัก</button>
   </div>
 </div>
 
 <!-- ==================== FIREBASE + GAME LOGIC ==================== -->
-<script>
-// ===== FIREBASE INIT =====
-let db;
-function initFirebase(){
-  try {
-    if(typeof firebase === 'undefined'){
-      document.getElementById('loadOverlay').innerHTML='<p style="color:#e74c3c;padding:20px;text-align:center">❌ โหลด Firebase ไม่ได้<br><small>ลอง refresh หรือตรวจสอบ internet</small><br><br><button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;background:#c9a84c;border:none;border-radius:8px;cursor:pointer;font-size:1rem">🔄 Refresh</button></p>';
-      return false;
-    }
-    const fbConfig = {
-      apiKey: "AIzaSyA_Vs6teseLHMfoO4qcWRFjN6tDFyYL6Ls",
-      authDomain: "gamefor-student.firebaseapp.com",
-      databaseURL: "https://gamefor-student-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "gamefor-student",
-      storageBucket: "gamefor-student.firebasestorage.app",
-      messagingSenderId: "1019963323516",
-      appId: "1:1019963323516:web:b4c7fdf6e79301aed4c5f9"
-    };
-    if(!firebase.apps.length) firebase.initializeApp(fbConfig);
-    db = firebase.database();
-    document.getElementById('loadOverlay').classList.add('hidden');
-    return true;
-  } catch(e) {
-    document.getElementById('loadOverlay').innerHTML='<p style="color:#e74c3c;padding:20px;text-align:center">❌ Firebase Error<br><small>'+e.message+'</small><br><br><button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;background:#c9a84c;border:none;border-radius:8px;cursor:pointer;font-size:1rem">🔄 Refresh</button></p>';
-    return false;
-  }
-}
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, remove, push } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
-// Wait for Firebase SDK to load
-window.addEventListener('load', ()=>{
-  let attempts = 0;
-  const tryInit = setInterval(()=>{
-    attempts++;
-    if(typeof firebase !== 'undefined' && typeof firebase.database !== 'undefined'){
-      clearInterval(tryInit);
-      initFirebase();
-    } else if(attempts > 20){
-      clearInterval(tryInit);
-      document.getElementById('loadOverlay').innerHTML='<p style="color:#e74c3c;padding:20px;text-align:center">❌ โหลด Firebase ไม่ได้<br><small>ลองตรวจสอบ internet แล้ว refresh</small><br><br><button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;background:#c9a84c;border:none;border-radius:8px;cursor:pointer;font-size:1rem">🔄 Refresh</button></p>';
-    }
-  }, 300);
-});
+// ===== FIREBASE CONFIG =====
+const firebaseConfig = {
+  apiKey: "AIzaSyA_Vs6teseLHMfoO4qcWRFjN6tDFyYL6Ls",
+  authDomain: "gamefor-student.firebaseapp.com",
+  databaseURL: "https://gamefor-student-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "gamefor-student",
+  storageBucket: "gamefor-student.firebasestorage.app",
+  messagingSenderId: "1019963323516",
+  appId: "1:1019963323516:web:b4c7fdf6e79301aed4c5f9"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 // ===== CLEAN OLD ROOMS =====
-(async()=>{
+async function cleanOldRooms(){
   try{
-    const snap = await db.ref('rooms').get();
+    const snap = await get(ref(db,'rooms'));
     if(!snap.exists()) return;
-    const now = Date.now(), limit = 24*3600*1000;
-    snap.forEach(c=>{ if(c.val().createdAt&&(now-c.val().createdAt)>limit) db.ref('rooms/'+c.key).remove(); });
-  }catch(e){}
-})();
+    const now = Date.now();
+    const limit = 24*60*60*1000;
+    const tasks = [];
+    snap.forEach(child=>{
+      const room = child.val();
+      if(room.createdAt && (now-room.createdAt) > limit){
+        tasks.push(remove(ref(db,'rooms/'+child.key)));
+      }
+    });
+    if(tasks.length > 0){
+      await Promise.all(tasks);
+      console.log("ลบห้องเก่า "+tasks.length+" ห้องค่ะ");
+    }
+  }catch(e){console.log('cleanup error',e);}
+}
+cleanOldRooms();
 
-// ===== VOCAB =====
-const VOCAB = [
-  {w:'大きい',t:'i',neg:'大きくない',m:'ใหญ่'},
-  {w:'小さい',t:'i',neg:'小さくない',m:'เล็ก'},
-  {w:'高い',t:'i',neg:'高くない',m:'สูง/แพง'},
-  {w:'低い',t:'i',neg:'低くない',m:'ต่ำ'},
-  {w:'長い',t:'i',neg:'長くない',m:'ยาว'},
-  {w:'短い',t:'i',neg:'短くない',m:'สั้น'},
-  {w:'速い',t:'i',neg:'速くない',m:'เร็ว'},
-  {w:'遅い',t:'i',neg:'遅くない',m:'ช้า'},
-  {w:'新しい',t:'i',neg:'新しくない',m:'ใหม่'},
-  {w:'古い',t:'i',neg:'古くない',m:'เก่า'},
-  {w:'強い',t:'i',neg:'強くない',m:'แข็งแกร่ง'},
-  {w:'弱い',t:'i',neg:'弱くない',m:'อ่อนแอ'},
-  {w:'暑い',t:'i',neg:'暑くない',m:'ร้อน'},
-  {w:'寒い',t:'i',neg:'寒くない',m:'หนาว'},
-  {w:'熱い',t:'i',neg:'熱くない',m:'ร้อน(สัมผัส)'},
-  {w:'冷たい',t:'i',neg:'冷たくない',m:'เย็น'},
-  {w:'明るい',t:'i',neg:'明るくない',m:'สว่าง'},
-  {w:'暗い',t:'i',neg:'暗くない',m:'มืด'},
-  {w:'楽しい',t:'i',neg:'楽しくない',m:'สนุก'},
-  {w:'難しい',t:'i',neg:'難しくない',m:'ยาก'},
-  {w:'元気',t:'na',neg:'元気じゃない',m:'สดชื่น'},
-  {w:'親切',t:'na',neg:'親切じゃない',m:'ใจดี'},
-  {w:'暇',t:'na',neg:'暇じゃない',m:'ว่าง'},
-  {w:'静か',t:'na',neg:'静かじゃない',m:'เงียบ'},
-  {w:'好き',t:'na',neg:'好きじゃない',m:'ชอบ'},
-  {w:'嫌い',t:'na',neg:'嫌いじゃない',m:'ไม่ชอบ'},
-  {w:'便利',t:'na',neg:'便利じゃない',m:'สะดวก'},
-  {w:'大変',t:'na',neg:'大変じゃない',m:'ลำบาก'},
-  {w:'丁寧',t:'na',neg:'丁寧じゃない',m:'สุภาพ'},
-  {w:'賑やか',t:'na',neg:'賑やかじゃない',m:'賑やか'},
+// ===== GAME DATA =====
+const ADJECTIVES = [
+  // い-adjectives
+  { word:'大きい', reading:'おおきい', meaning:'ใหญ่', type:'i', negPresent:'大きくない' },
+  { word:'小さい', reading:'ちいさい', meaning:'เล็ก', type:'i', negPresent:'小さくない' },
+  { word:'高い', reading:'たかい', meaning:'แพง/สูง', type:'i', negPresent:'高くない' },
+  { word:'安い', reading:'やすい', meaning:'ถูก', type:'i', negPresent:'安くない' },
+  { word:'新しい', reading:'あたらしい', meaning:'ใหม่', type:'i', negPresent:'新しくない' },
+  { word:'古い', reading:'ふるい', meaning:'เก่า', type:'i', negPresent:'古くない' },
+  { word:'いい/よい', reading:'いい', meaning:'ดี', type:'i', negPresent:'よくない' },
+  { word:'悪い', reading:'わるい', meaning:'แย่/ไม่ดี', type:'i', negPresent:'悪くない' },
+  { word:'難しい', reading:'むずかしい', meaning:'ยาก', type:'i', negPresent:'難しくない' },
+  { word:'易しい', reading:'やさしい', meaning:'ง่าย', type:'i', negPresent:'易しくない' },
+  { word:'楽しい', reading:'たのしい', meaning:'สนุก', type:'i', negPresent:'楽しくない' },
+  { word:'おいしい', reading:'おいしい', meaning:'อร่อย', type:'i', negPresent:'おいしくない' },
+  { word:'暑い', reading:'あつい', meaning:'ร้อน(อากาศ)', type:'i', negPresent:'暑くない' },
+  { word:'寒い', reading:'さむい', meaning:'หนาว', type:'i', negPresent:'寒くない' },
+  { word:'多い', reading:'おおい', meaning:'มาก', type:'i', negPresent:'多くない' },
+  { word:'少ない', reading:'すくない', meaning:'น้อย', type:'i', negPresent:'少なくない' },
+  { word:'長い', reading:'ながい', meaning:'ยาว', type:'i', negPresent:'長くない' },
+  { word:'短い', reading:'みじかい', meaning:'สั้น', type:'i', negPresent:'短くない' },
+  { word:'忙しい', reading:'いそがしい', meaning:'ยุ่ง', type:'i', negPresent:'忙しくない' },
+  { word:'白い', reading:'しろい', meaning:'ขาว', type:'i', negPresent:'白くない' },
+  // な-adjectives
+  { word:'きれい', reading:'きれい', meaning:'สวย/สะอาด', type:'na', negPresent:'きれいじゃない' },
+  { word:'有名', reading:'ゆうめい', meaning:'มีชื่อเสียง', type:'na', negPresent:'有名じゃない' },
+  { word:'元気', reading:'げんき', meaning:'มีสุขภาพดี', type:'na', negPresent:'元気じゃない' },
+  { word:'静か', reading:'しずか', meaning:'เงียบ', type:'na', negPresent:'静かじゃない' },
+  { word:'にぎやか', reading:'にぎやか', meaning:'賑やか', type:'na', negPresent:'にぎやかじゃない' },
+  { word:'便利', reading:'べんり', meaning:'สะดวก', type:'na', negPresent:'便利じゃない' },
+  { word:'不便', reading:'ふべん', meaning:'ไม่สะดวก', type:'na', negPresent:'不便じゃない' },
+  { word:'好き', reading:'すき', meaning:'ชอบ', type:'na', negPresent:'好きじゃない' },
+  { word:'嫌い', reading:'きらい', meaning:'ไม่ชอบ', type:'na', negPresent:'嫌いじゃない' },
+  { word:'上手', reading:'じょうず', meaning:'เก่ง', type:'na', negPresent:'上手じゃない' },
+  { word:'下手', reading:'へた', meaning:'ไม่เก่ง', type:'na', negPresent:'下手じゃない' },
+  { word:'暇', reading:'ひま', meaning:'ว่าง', type:'na', negPresent:'暇じゃない' },
+  { word:'親切', reading:'しんせつ', meaning:'ใจดี', type:'na', negPresent:'親切じゃない' },
+  { word:'大切', reading:'たいせつ', meaning:'สำคัญ', type:'na', negPresent:'大切じゃない' },
+  { word:'大丈夫', reading:'だいじょうぶ', meaning:'ไม่เป็นไร', type:'na', negPresent:'大丈夫じゃない' },
 ];
 
-function makeDistractors(correct, word, type){
-  if(type==='i'){
-    const stem = word.slice(0,-1);
-    return [stem+'くありません', stem+'じゃない', word+'ない'].sort(()=>Math.random()-.5).slice(0,3);
+// Wrong answer distractors generator
+function genDistractors(adj, correct){
+  const distractors = [];
+  if(adj.type === 'i'){
+    // Common mistakes for い-adj
+    distractors.push(adj.word.replace('い','') + 'じゃない');  // na-adj style
+    distractors.push(adj.word.replace('い','くて'));         // te-form
+    distractors.push(adj.word + 'ない');                    // just add ない
+    distractors.push(adj.word.replace('い','') + 'いない'); // random wrong
   } else {
-    return [word+'くない', word+'ではありません', word+'ない'].sort(()=>Math.random()-.5).slice(0,3);
+    // Common mistakes for な-adj
+    const base = adj.word;
+    distractors.push(base + 'くない');       // い-adj style
+    distractors.push(base + 'ではない');     // formal negative
+    distractors.push(base + 'ない');         // no じゃ
+    distractors.push(base + 'じゃなかった'); // past tense
   }
+  // Filter distinct from correct
+  const pool = distractors.filter(d => d !== correct);
+  // Shuffle and pick 3
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+  return pool.slice(0,3);
 }
 
-function buildQ(adj){
-  const correct = adj.neg;
-  const wrongs = makeDistractors(correct, adj.w, adj.t);
-  return { word:adj.w, correct, choices:[correct,...wrongs].sort(()=>Math.random()-.5), meaning:adj.m, type:adj.t };
+// Generate question
+function generateQuestion(adj){
+  const correct = adj.negPresent;
+  const wrong = genDistractors(adj, correct);
+  const choices = [correct, ...wrong];
+  for(let i=choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}
+  return { adj, correct, choices };
 }
 
-// ===== DAY CONFIG =====
-const DAY = {
-  1:{piles:3, rounds:10, robRounds:[5,8], night:'🌕', nName:'คืนจันทร์เต็มดวง', nDesc:'ค่ำคืนที่จันทร์เต็มดวงเหมาะมากสำหรับการออกมาขโมย', reward:3000000, gCorrect:2000000},
-  2:{piles:4, rounds:10, robRounds:[3,6,7,9], night:'🌫️', nName:'คืนเมฆครึ้ม', nDesc:'คืนเมฆครึ้มอาจพบคนชะตาใกล้ขาด', reward:4000000, gCorrect:3000000},
-  3:{piles:4, rounds:10, robRounds:[1,3,5,7,9], night:'⛈️', nName:'คืนฝนตก', nDesc:'คืนฝนตก เป็นคืนที่โจรออกมาขโมยน้อยสุด (มั้ง)', reward:5000000, gCorrect:4000000},
+// ===== NIGHT / DAY CONFIG =====
+const NIGHT_CONFIG = {
+  1: { emoji:'🌕', name:'คืนจันทร์เต็มดวง', desc:'ค่ำคืนที่จันทร์เต็มดวงเหมาะมากสำหรับการออกมาขโมย', piles:3,
+       robberRounds:[5,8],
+       robberChance:{ petty:1.0, gang:0.0, boss:0.0 },
+       moneyOddsReduction:{ petty:0.25, gang:0.5, boss:0.75 }
+     },
+  2: { emoji:'🌫️', name:'คืนเมฆครึ้ม', desc:'คืนเมฆครึ้มอาจพบคนชะตาใกล้ขาด', piles:4,
+       robberRounds:[3,6,7,9],
+       robberChance:{ petty:0.6, gang:0.35, boss:0.05 },
+       moneyOddsReduction:{ petty:0.25, gang:0.5, boss:0.75 }
+     },
+  3: { emoji:'⛈️', name:'คืนฝนตก', desc:'คืนฝนตก เป็นคืนที่โจรออกมาขโมยน้อยสุด (มั้ง)', piles:4,
+       robberRounds:[1,3,5,7,9],
+       robberChance:{ petty:0.20, gang:0.25, boss:0.65 },
+       moneyOddsReduction:{ petty:0.25, gang:0.5, boss:0.75 }
+     }
 };
 
-// Night robber prob
-const NIGHT_PROB = {
-  1:[{t:'small',p:1.0}],
-  2:[{t:'small',p:0.6},{t:'group',p:0.35},{t:'none',p:0.05}],
-  3:[{t:'small',p:0.20},{t:'group',p:0.25},{t:'boss',p:0.65}],
+const ROBBER_TYPE = {
+  petty: { name:'โจรลูกกระจ๊อก', emoji:'🦹', badge:'petty',
+    moneyGain:300000, lossOnFail:303000, heartLoss:0.5, bonusOnWin:0, weaponOnWin:false,
+    questionCount:1,
+    moneyOddsReduction: NIGHT_CONFIG[1].moneyOddsReduction.petty
+  },
+  gang: { name:'กลุ่มโจรลูกกระจ๊อก', emoji:'🦹🦹', badge:'gang',
+    moneyGain:500000, lossOnFail:530000, heartLoss:0.5, bonusOnWin:50000, weaponOnWin:false,
+    questionCount:4,
+  },
+  boss: { name:'หัวหน้าโจร', emoji:'🦹‍♂️', badge:'boss',
+    moneyGain:800000, lossOnFail:850000, heartLoss:1, bonusOnWin:50000, weaponOnWin:true,
+    questionCount:4,
+  }
 };
 
-// Robber stats — use UPDATED numbers from design doc (ชุดท้าย)
-const ROB = {
-  small:{name:'โจรลูกกระจ๊อก',ico:'🥷',color:'🟢',lvl:'ง่าย',steal:303000,hLoss:0,bonusCorrect:0,moneyPile:300000,qCount:1,weapon:false},
-  group:{name:'กลุ่มโจรลูกกระจ๊อก',ico:'👥🥷',color:'🟡',lvl:'กลาง',steal:503000,hLoss:0,bonusCorrect:300000,moneyPile:500000,qCount:3,weapon:false},
-  boss:{name:'หัวหน้าโจร',ico:'💀',color:'🔴',lvl:'ยาก',steal:705000,hLoss:0.5,bonusCorrect:300000,moneyPile:300000,qCount:3,weapon:true},
-};
+// Money gains for normal rounds
+const MONEY_NORMAL = 300000;
 
-function pickRobberType(day){
-  const r = Math.random(); let cum=0;
-  for(const c of NIGHT_PROB[day]){ cum+=c.p; if(r<=cum) return c.t; }
-  return 'small';
-}
+// Player avatars
+const AVATARS = ['🧑','👩','👨','🧒','👧','👦','🧑‍🎓','👩‍🏫','🧑‍💼','👮'];
 
 // ===== STATE =====
-let myId = 'p_'+Math.random().toString(36).slice(2,8);
-let myName='', isHost=false, roomCode='', roomRef=null, roomOff=null;
-let myChoice=null, myAnswers=[], questionTimer=null, answeredThisQ=false;
-let prevDashScreen = 'gameboard';
+let state = {
+  roomCode: null,
+  playerId: null,
+  playerName: null,
+  isHost: false,
+  players: {},
+  day: 1,
+  round: 1,
+  phase: 'lobby', // lobby, night-intro, select, emergency, question, result, summary, final
+  currentRobberType: null,
+  isRobberRound: false,
+  myPileChoice: null,
+  pileResults: null,
+  currentQuestions: [],
+  currentQIndex: 0,
+  qAnswers: [],
+  dayQALog: [],
+  shuffledAdjs: [],
+  adjIndex: 0,
+  windScatterActive: false,
+  listeners: []
+};
 
-// ===== SCREEN =====
-function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo(0,0); }
-
-// ===== TOAST =====
-function toast(msg,type='info'){ const el=document.getElementById('toast'); el.textContent=msg; el.className='toast show '+type; setTimeout(()=>el.classList.remove('show'),3000); }
-
-// ===== FORMAT =====
-function fmt(n){ if(!n&&n!==0) return '0'; return Math.abs(n).toLocaleString('th-TH'); }
-function fmtS(n){ if(!n) return '0'; if(n>=1000000) return (n/1000000).toFixed(1)+'M'; if(n>=1000) return (n/1000).toFixed(0)+'K'; return n; }
-function hearts(h){
-  if(h===undefined||h===null) return '—';
-  const f=Math.floor(h), hf=h%1>=0.5?1:0;
-  return '❤️'.repeat(f)+(hf?'🖤':'');
+// ===== UTILITY =====
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>{
+    s.classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
 }
 
-// ===== GEN ROOM CODE =====
-function genCode(){ return Math.random().toString(36).slice(2,6).toUpperCase(); }
+function showToast(msg, duration=2500){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), duration);
+}
+
+function fmtMoney(n){ return (n>=0?'+':'')+n.toLocaleString('th-TH')+' ฿'; }
+function fmtMoneyAbs(n){ return n.toLocaleString('th-TH')+' ฿'; }
+
+function heartsDisplay(h){
+  const full = Math.floor(h);
+  const half = (h % 1 >= 0.5) ? 1 : 0;
+  const empty = Math.floor(5 - h - (half*0.5));
+  return '❤️'.repeat(full) + (half?'🖤':'') + '';
+}
+
+function generateRoomCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<4;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
+function shuffleArray(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function rollRobberType(day){
+  const nc = NIGHT_CONFIG[day].robberChance;
+  const r = Math.random();
+  if(r < nc.petty) return 'petty';
+  if(r < nc.petty + nc.gang) return 'gang';
+  return 'boss';
+}
+
+// ===== TABS =====
+window.showTab = function(tabId){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-row .btn').forEach(b=>b.classList.remove('btn-gold'));
+  document.getElementById(tabId).classList.add('active');
+  event.target.classList.add('btn-gold');
+};
 
 // ===== CREATE ROOM =====
-async function createRoom(){
-  const name = document.getElementById('inName').value.trim();
-  if(!name){ toast('ใส่ชื่อก่อนนะคะ','err'); return; }
-  myName=name; isHost=true; roomCode=genCode();
-  const data = {
-    createdAt:Date.now(), host:myId, phase:'lobby',
-    players:{ [myId]:{name,money:150000000,hearts:5,weapons:0,alive:true,status:'waiting'} }
+window.createRoom = async function(){
+  const name = document.getElementById('create-name').value.trim();
+  if(!name){ showStatus('title-status','กรุณาใส่ชื่อก่อนนะคะ','error'); return; }
+  const code = generateRoomCode();
+  const pid = 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  state.roomCode = code;
+  state.playerId = pid;
+  state.playerName = name;
+  state.isHost = true;
+
+  const roomData = {
+    createdAt: Date.now(),
+    host: pid,
+    phase: 'lobby',
+    day: 1,
+    round: 1,
+    players: {
+      [pid]: { name, avatar: AVATARS[0], money:0, hearts:5, weapons:0, isHost:true, eliminated:false, joinedAt:Date.now() }
+    }
   };
-  await db.ref('rooms/'+roomCode).set(data);
-  openWaitingRoom();
-  listenRoom();
-  toast('สร้างห้องสำเร็จ รหัส: '+roomCode,'ok');
-}
+
+  try {
+    await set(ref(db, 'rooms/'+code), roomData);
+    showStatus('title-status','สร้างห้องสำเร็จ!','success');
+    setTimeout(()=>enterLobby(code), 600);
+  } catch(e){
+    showStatus('title-status','เกิดข้อผิดพลาด: '+e.message,'error');
+  }
+};
 
 // ===== JOIN ROOM =====
-async function joinRoom(){
-  const code = document.getElementById('inCode').value.trim().toUpperCase();
-  const name = document.getElementById('inName').value.trim();
-  if(!code||code.length!==4){ toast('รหัสต้องมี 4 ตัวค่ะ','err'); return; }
-  if(!name){ toast('ใส่ชื่อก่อนนะคะ','err'); return; }
-  const snap = await db.ref('rooms/'+code).get();
-  if(!snap.exists()){ toast('ไม่พบห้อง '+code,'err'); return; }
-  myName=name; isHost=false; roomCode=code;
-  await db.ref('rooms/'+code+'/players/'+myId).set({name,money:150000000,hearts:5,weapons:0,alive:true,status:'waiting'});
-  openWaitingRoom();
-  listenRoom();
-  toast('เข้าห้องสำเร็จ!','ok');
-}
+window.joinRoom = async function(){
+  const name = document.getElementById('join-name').value.trim();
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if(!name){ showStatus('title-status','กรุณาใส่ชื่อก่อนนะคะ','error'); return; }
+  if(code.length!==4){ showStatus('title-status','รหัสห้องต้อง 4 ตัวอักษรค่ะ','error'); return; }
 
-function openWaitingRoom(){
-  document.getElementById('showCode').textContent = roomCode;
-  document.getElementById('pCreate').classList.add('hidden');
-  document.getElementById('pWaiting').classList.remove('hidden');
-  if(isHost){ document.getElementById('hostStartArea').classList.remove('hidden'); document.getElementById('guestWait').classList.add('hidden'); }
-  else { document.getElementById('hostStartArea').classList.add('hidden'); document.getElementById('guestWait').classList.remove('hidden'); }
-}
+  try {
+    const snap = await get(ref(db,'rooms/'+code));
+    if(!snap.exists()){ showStatus('title-status','ไม่พบห้องนี้ค่ะ','error'); return; }
+    const room = snap.val();
+    if(room.phase !== 'lobby'){ showStatus('title-status','เกมเริ่มแล้ว ไม่สามารถเข้าร่วมได้ค่ะ','error'); return; }
 
-// ===== LISTEN ROOM =====
-function listenRoom(){
-  if(roomOff) roomOff();
-  roomRef = db.ref('rooms/'+roomCode);
-  const listener = roomRef.on('value', snap=>{
-    if(!snap.exists()) return;
-    handleUpdate(snap.val());
-  });
-  roomOff = ()=> roomRef.off('value', listener);
-}
+    const existing = Object.values(room.players||{});
+    const taken = existing.map(p=>p.name);
+    if(taken.includes(name)){ showStatus('title-status','ชื่อนี้มีแล้วค่ะ ลองชื่ออื่นดูนะ','error'); return; }
 
-function handleUpdate(data){
-  const phase = data.phase;
-  const me = data.players?.[myId];
+    const pid = 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    const avatarIdx = existing.length % AVATARS.length;
+    state.roomCode = code;
+    state.playerId = pid;
+    state.playerName = name;
+    state.isHost = false;
 
-  // update my status always
-  if(me){ updateMyBar(me); }
-
-  // update waiting chips
-  if(phase==='lobby'){ updateChips(data.players); return; }
-
-  // route screen
-  const cur = document.querySelector('.screen.active')?.id;
-
-  if(phase==='dayintro'){
-    setupDayIntro(data.currentDay);
-    if(cur!=='dayintro') show('dayintro');
-  } else if(phase==='picking'){
-    if(cur!=='gameboard'&&cur!=='hostdash'){
-      setupBoard(data);
-      show('gameboard');
-    }
-    updatePileCounts(data);
-    updatePlayersBar(data.players, data.roundChoices||{});
-  } else if(phase==='question'){
-    const qIdx = data.currentQIdx||0;
-    const curQIdx = parseInt(document.getElementById('question').dataset.qIdx||'-1');
-    if(cur!=='question'){
-      answeredThisQ=false;
-      document.getElementById('question').dataset.qIdx='-1';
-      setupQuestion(data);
-      show('question');
-    } else if(qIdx !== curQIdx){
-      // New question index — reset and load
-      answeredThisQ=false;
-      document.getElementById('question').dataset.qIdx=qIdx;
-      setupQuestion(data);
-    }
-    updatePlayersBar(data.players, {});
-  } else if(phase==='result'){
-    if(cur!=='result'&&cur!=='hostdash'){
-      buildResult(data);
-      show('result');
-    }
-  } else if(phase==='daysummary'){
-    if(cur!=='daysummary'&&cur!=='hostdash'){
-      buildSummary(data);
-      show('daysummary');
-    }
-  } else if(phase==='final'){
-    if(cur!=='final'){
-      buildFinal(data);
-      show('final');
-    }
-  }
-
-  // host dash realtime update
-  if(isHost && document.getElementById('hostdash').classList.contains('active')){
-    updateDash(data);
-  }
-}
-
-function updateChips(players){
-  const el = document.getElementById('playersChips');
-  el.innerHTML='';
-  Object.entries(players||{}).forEach(([id,p])=>{
-    const c=document.createElement('div');
-    c.className='chip'+(id===Object.keys(players)[0]?' host':'');
-    c.textContent=(id===Object.keys(players)[0]?'👑 ':'🧑 ')+p.name;
-    el.appendChild(c);
-  });
-}
-
-// ===== HOST START =====
-async function hostStartGame(){
-  const snap = await db.ref('rooms/'+roomCode+'/players').get();
-  if(!snap.exists()||Object.keys(snap.val()).length<1){ toast('ต้องมีผู้เล่นก่อนนะคะ','err'); return; }
-  await db.ref('rooms/'+roomCode).update({phase:'dayintro',currentDay:1,currentRound:0});
-}
-
-// ===== DAY INTRO =====
-function setupDayIntro(day){
-  const cfg=DAY[day];
-  document.getElementById('diAtmos').textContent=cfg.night;
-  document.getElementById('diBadge').textContent='คืนที่ '+day;
-  document.getElementById('diTitle').textContent=cfg.nName;
-  document.getElementById('diDesc').textContent=cfg.nDesc;
-  document.getElementById('diInfo').innerHTML=
-    `<b style="color:var(--text)">📋 ${cfg.rounds} รอบ · ${cfg.piles} กอง</b><br>`+
-    `💰 รอบปกติ: +${fmt(cfg.reward)} | กรวด+ถูก: +${fmt(cfg.gCorrect)}`;
-  if(isHost){ document.getElementById('diBtnHost').classList.remove('hidden'); document.getElementById('diGuestMsg').classList.add('hidden'); }
-  else { document.getElementById('diBtnHost').classList.add('hidden'); document.getElementById('diGuestMsg').classList.remove('hidden'); }
-}
-
-async function hostBeginDay(){
-  if(!isHost) return;
-  const snap = await db.ref('rooms/'+roomCode).get();
-  const data=snap.val();
-  await startRound(data.currentDay, 1, data);
-}
-
-// ===== START ROUND =====
-async function startRound(day, round, roomData){
-  const cfg=DAY[day];
-  const isRob = cfg.robRounds.includes(round);
-  let robType=null;
-  if(isRob){ robType=pickRobberType(day); if(robType==='none') robType=null; }
-
-  // Build piles
-  const moneyIdx=Math.floor(Math.random()*cfg.piles);
-  const piles=Array.from({length:cfg.piles},(_,i)=>({id:i,type:i===moneyIdx?'money':'gravel'}));
-
-  // Build questions
-  const qCount = isRob&&robType ? ROB[robType].qCount : 1;
-  const shuffled=[...VOCAB].sort(()=>Math.random()-.5);
-  const qs=shuffled.slice(0,qCount).map(a=>buildQ(a));
-
-  const update = {
-    phase:'picking', currentDay:day, currentRound:round,
-    isRobRound:isRob, robType:robType||null,
-    piles, questions:qs,
-    roundChoices:{}, roundAnswers:{}, roundReady:{}, roundResults:{}
-  };
-  await db.ref('rooms/'+roomCode).update(update);
-
-  myChoice=null; myAnswers=[];
-  setupBoard({...roomData,...update, players:roomData.players});
-  show('gameboard');
-}
-
-// ===== BOARD SETUP =====
-function setupBoard(data){
-  const day=data.currentDay, round=data.currentRound, cfg=DAY[day];
-  document.getElementById('topRound').textContent=`Day ${day} · รอบ ${round}/${cfg.rounds}`;
-  document.getElementById('topNight').textContent=cfg.night+' '+cfg.nName;
-  document.getElementById('topNight').title=cfg.nName;
-  if(isHost) document.getElementById('dashBtn').classList.remove('hidden');
-  else document.getElementById('dashBtn').classList.add('hidden');
-
-  // Piles
-  const wrap=document.getElementById('pilesWrap');
-  wrap.innerHTML='';
-  (data.piles||[]).forEach((pile,i)=>{
-    const el=document.createElement('div');
-    el.className='pile'; el.id='pile'+i;
-    el.innerHTML=`<span class="pile-ico">💼</span><div class="pile-name">กองที่ ${i+1}</div><div class="pile-sub">—</div><div class="pile-count" id="pc${i}"></div>`;
-    el.onclick=()=>selectPile(i);
-    wrap.appendChild(el);
-  });
-
-  myChoice=null;
-  document.getElementById('btnConfirm').classList.remove('show');
-  document.getElementById('waitMsg').textContent='';
-  updatePlayersBar(data.players||{},{});
-  updateMyBar(data.players?.[myId]);
-  document.getElementById('myNameLabel').textContent=myName;
-}
-
-function selectPile(i){
-  if(document.getElementById('pile'+i).classList.contains('locked')) return;
-  document.querySelectorAll('.pile').forEach(p=>p.classList.remove('selected'));
-  document.getElementById('pile'+i).classList.add('selected');
-  myChoice=i;
-  document.getElementById('btnConfirm').classList.add('show');
-}
-
-async function confirmChoice(){
-  if(myChoice===null) return;
-  document.getElementById('btnConfirm').disabled=true;
-  document.querySelectorAll('.pile').forEach(p=>p.classList.add('locked'));
-  document.getElementById('waitMsg').textContent='⏳ รอผู้เล่นคนอื่น...';
-  await db.ref('rooms/'+roomCode+'/roundChoices/'+myId).set(myChoice);
-  await db.ref('rooms/'+roomCode+'/players/'+myId).update({status:'picked'});
-  // everyone updates — host watches and resolves
-  if(isHost) watchChoices();
-}
-
-function updatePileCounts(data){
-  const choices=data.roundChoices||{};
-  const pCount=data.piles?.length||3;
-  for(let i=0;i<pCount;i++){ const el=document.getElementById('pc'+i); if(el) el.textContent=''; }
-  const counts={};
-  Object.values(choices).forEach(c=>{ counts[c]=(counts[c]||0)+1; });
-  Object.entries(counts).forEach(([idx,cnt])=>{ const el=document.getElementById('pc'+idx); if(el&&cnt>0) el.textContent=cnt; });
-  updatePlayersBar(data.players||{}, choices);
-}
-
-async function watchChoices(){
-  if(!isHost) return;
-  const snap=await db.ref('rooms/'+roomCode).get();
-  const data=snap.val();
-  const players=data.players||{};
-  const choices=data.roundChoices||{};
-  const alive=Object.entries(players).filter(([,p])=>p.alive!==false);
-  if(Object.keys(choices).length>=alive.length){
-    await resolveRound(data);
-  } else {
-    setTimeout(()=>{ if(isHost) watchChoices(); },1000);
-  }
-}
-
-// ===== RESOLVE ROUND =====
-async function resolveRound(data){
-  const day=data.currentDay, cfg=DAY[day];
-  const piles=data.piles, choices=data.roundChoices||{};
-  const isRob=data.isRobRound, robType=data.robType;
-  const qs=data.questions||[];
-
-  // Determine if any player hit gravel OR it's robber round → need questions
-  const needQ = isRob || Object.values(choices).some(c=>piles[c]?.type==='gravel');
-
-  if(!needQ){
-    // All got money, no question needed
-    const results={};
-    Object.entries(choices).forEach(([pid,pileIdx])=>{
-      results[pid]={ pileId:pileIdx, pileType:'money', outcome:'money_normal', moneyChange:cfg.reward, heartChange:0, weaponChange:0 };
+    await set(ref(db,'rooms/'+code+'/players/'+pid),{
+      name, avatar: AVATARS[avatarIdx], money:0, hearts:5, weapons:0, isHost:false, eliminated:false, joinedAt:Date.now()
     });
-    await finalizeResults(data, results);
+    enterLobby(code);
+  } catch(e){
+    showStatus('title-status','เกิดข้อผิดพลาด: '+e.message,'error');
+  }
+};
+
+function showStatus(elId, msg, type){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  el.className = 'status-msg '+type;
+  el.textContent = msg;
+}
+
+// ===== LOBBY =====
+function enterLobby(code){
+  showScreen('screen-lobby');
+  document.getElementById('lobby-room-code').textContent = code;
+
+  if(state.isHost){
+    document.getElementById('host-controls').style.display = 'block';
+  }
+
+  // Listen to room changes
+  const roomRef = ref(db,'rooms/'+code);
+  const unsub = onValue(roomRef, snap=>{
+    if(!snap.exists()) return;
+    const room = snap.val();
+    state.players = room.players || {};
+
+    // Update lobby UI
+    updateLobbyPlayers();
+
+    // If phase changed, follow
+    if(room.phase === 'night-intro' && state.phase === 'lobby'){
+      state.phase = 'night-intro';
+      state.day = room.day || 1;
+      state.round = room.round || 1;
+      showNightIntro(room.day);
+    }
+    if(room.phase === 'howtoplay' && state.phase === 'lobby'){
+      state.phase = 'howtoplay';
+      showScreen('screen-howtoplay');
+    }
+  });
+  state.listeners.push(unsub);
+}
+
+function updateLobbyPlayers(){
+  const list = document.getElementById('players-list');
+  const players = Object.values(state.players).sort((a,b)=>a.joinedAt-b.joinedAt);
+  document.getElementById('player-count').textContent = players.length;
+  list.innerHTML = players.map(p=>`
+    <div class="player-item">
+      <span class="player-avatar">${p.avatar}</span>
+      <span class="player-name">${p.name}</span>
+      ${p.isHost ? '<span class="host-badge">HOST</span>' : ''}
+    </div>
+  `).join('');
+}
+
+window.hostStartGame = async function(){
+  if(!state.isHost) return;
+  const players = Object.values(state.players);
+  if(players.length < 1){ showToast('ต้องมีผู้เล่นอย่างน้อย 1 คนค่ะ'); return; }
+  await update(ref(db,'rooms/'+state.roomCode),{ phase:'howtoplay', day:1, round:1 });
+};
+
+// ===== HOW TO PLAY =====
+window.proceedFromHowToPlay = async function(){
+  state.phase = 'night-intro';
+  if(state.isHost){
+    await update(ref(db,'rooms/'+state.roomCode),{ phase:'night-intro', day:1 });
+  }
+  showNightIntro(1);
+};
+
+// ===== NIGHT INTRO =====
+function showNightIntro(day){
+  const nc = NIGHT_CONFIG[day];
+  document.getElementById('night-day-badge').textContent = 'วันที่ '+day;
+  document.getElementById('night-icon').textContent = nc.emoji;
+  document.getElementById('night-title').textContent = nc.name;
+  document.getElementById('night-desc').textContent = nc.desc;
+
+  // Robber info
+  const ri = document.getElementById('night-robber-info');
+  const rc = nc.robberChance;
+  ri.innerHTML = `🦹 โจรคืนนี้: ลูกกระจ๊อก ${(rc.petty*100).toFixed(0)}% | กลุ่มโจร ${(rc.gang*100).toFixed(0)}% | หัวหน้า ${(rc.boss*100).toFixed(0)}%<br>⚡ รอบโจร: ${nc.robberRounds.join(', ')}`;
+
+  const btn = document.getElementById('night-continue-btn');
+  if(state.isHost){
+    btn.style.display = 'block';
+    btn.onclick = nightIntroDone;
   } else {
-    await db.ref('rooms/'+roomCode).update({ phase:'question', currentQIdx:0, roundAnswers:{} });
-    // Players navigate themselves via listener
+    btn.style.display = 'none';
+  }
+  showScreen('screen-night');
+
+  // Non-host: listen for game start
+  if(!state.isHost){
+    listenForPhaseChange('select');
   }
 }
 
-// ===== QUESTION SETUP =====
-function setupQuestion(data){
-  const day=data.currentDay, isRob=data.isRobRound, robType=data.robType;
-  const qs=data.questions||[], qIdx=data.currentQIdx||0;
-  if(qIdx>=qs.length) return;
+window.nightIntroDone = async function(){
+  if(!state.isHost) return;
+  // Prepare game round
+  state.day = parseInt(document.getElementById('night-day-badge').textContent.replace('วันที่ ',''));
+  state.round = 1;
 
-  const rc=robType?ROB[robType]:null;
+  // Shuffle adjectives for this session
+  state.shuffledAdjs = shuffleArray([...ADJECTIVES]);
+  state.adjIndex = 0;
+  state.dayQALog = [];
 
-  // Robber card
-  if(isRob&&rc){
-    document.getElementById('robberCard').style.display='';
-    document.getElementById('robberIco').textContent=rc.ico;
-    document.getElementById('robberTitle').textContent=rc.name+' โผล่แล้ว!';
-    document.getElementById('robberSub').textContent=rc.color+' '+rc.lvl;
-  } else {
-    document.getElementById('robberCard').style.display='none';
-  }
-
-  const q=qs[qIdx];
-  document.getElementById('qWord').textContent=q.word;
-  document.getElementById('qMeta').textContent=`ข้อ ${qIdx+1}/${qs.length} · ${q.type==='i'?'い':'な'}-adj (${q.meaning})`;
-  document.getElementById('question').dataset.qIdx=qIdx;
-
-  const grid=document.getElementById('choicesGrid');
-  grid.innerHTML='';
-  answeredThisQ=false;
-  q.choices.forEach((c,i)=>{
-    const btn=document.createElement('button');
-    btn.className='choice'; btn.textContent=c;
-    btn.onclick=()=>answerQ(c, q.correct, btn);
-    grid.appendChild(btn);
+  // Determine robber round types for whole day upfront
+  const nc = NIGHT_CONFIG[state.day];
+  const roundRobberTypes = {};
+  nc.robberRounds.forEach(r=>{
+    roundRobberTypes[r] = rollRobberType(state.day);
   });
 
-  // Timer 15s
-  let tLeft=15;
-  document.getElementById('timerBar').style.width='100%';
-  if(questionTimer) clearInterval(questionTimer);
-  questionTimer=setInterval(()=>{
-    tLeft-=0.1;
-    document.getElementById('timerBar').style.width=Math.max(0,(tLeft/15)*100)+'%';
-    if(tLeft<=0){ clearInterval(questionTimer); if(!answeredThisQ) answerQ(null,q.correct,null); }
-  },100);
-}
-
-async function answerQ(chosen, correct, btn){
-  if(answeredThisQ) return;
-  answeredThisQ=true;
-  if(questionTimer) clearInterval(questionTimer);
-  document.querySelectorAll('.choice').forEach(b=>b.disabled=true);
-  const ok = chosen===correct;
-
-  document.querySelectorAll('.choice').forEach(b=>{
-    if(b.textContent===correct) b.classList.add('correct');
-    else if(b===btn&&!ok) b.classList.add('wrong');
+  await update(ref(db,'rooms/'+state.roomCode),{
+    phase: 'select',
+    day: state.day,
+    round: 1,
+    roundRobberTypes: roundRobberTypes,
+    pileChoices: {},
+    pileResults: null,
+    windScatter: false
   });
 
-  const snap=await db.ref('rooms/'+roomCode).get();
-  const data=snap.val();
-  const qIdx=data.currentQIdx||0;
-  const myAns = data.roundAnswers?.[myId]||[];
-  myAns.push(ok);
-  await db.ref('rooms/'+roomCode+'/roundAnswers/'+myId).set(myAns);
-  await db.ref('rooms/'+roomCode+'/players/'+myId).update({status:'answered'});
+  startListeningToGame();
+  showGameBoard();
+};
 
-  if(isHost){
-    setTimeout(()=>checkAllAnswered(), 2000);
+// ===== GAME BOARD =====
+function showGameBoard(){
+  const day = state.day;
+  const round = state.round;
+  const nc = NIGHT_CONFIG[day];
+  const isRobberRound = nc.robberRounds.includes(round);
+
+  document.getElementById('game-night-badge').textContent = nc.emoji;
+  document.getElementById('game-day-info').textContent = 'Day '+day+' — '+nc.name;
+  document.getElementById('game-round-info').textContent = 'รอบที่ '+round+' / 10';
+  document.getElementById('game-round-type').textContent = isRobberRound ? '⚠️ รอบโจร' : '🌿 รอบปกติ';
+  document.getElementById('pile-count-label').textContent = nc.piles;
+
+  updatePlayersStatus();
+  renderPiles(nc.piles);
+
+  state.myPileChoice = null;
+  document.getElementById('waiting-area').style.display = 'flex';
+  document.getElementById('waiting-text').textContent = 'รอผู้เล่นทุกคนเลือก...';
+
+  showScreen('screen-game');
+}
+
+function updatePlayersStatus(){
+  const container = document.getElementById('game-players-status');
+  const players = Object.values(state.players).sort((a,b)=>b.money-a.money);
+  container.innerHTML = players.map(p=>{
+    const isMe = p.name === state.playerName;
+    const cls = p.eliminated ? 'pstatus-card eliminated' : isMe ? 'pstatus-card is-me' : 'pstatus-card';
+    return `
+      <div class="${cls}">
+        <div class="pname">${p.avatar} ${p.name}${isMe?' (คุณ)':''}</div>
+        <div class="pmoney">${fmtMoneyAbs(p.money)}</div>
+        <div class="phearts">${heartsDisplay(p.hearts)}</div>
+        ${p.weapons>0?`<div class="pweapon">⚔️ ×${p.weapons}</div>`:''}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderPiles(count){
+  const row = document.getElementById('piles-row');
+  row.innerHTML = '';
+  for(let i=1;i<=count;i++){
+    const btn = document.createElement('button');
+    btn.className = 'pile-btn';
+    btn.dataset.pile = i;
+    btn.innerHTML = `<div class="pile-icon">🎒</div><div class="pile-number">${i}</div><div class="pile-label">กองที่ ${i}</div>`;
+    btn.onclick = ()=>choosePile(i);
+    row.appendChild(btn);
   }
 }
 
-async function checkAllAnswered(){
-  if(!isHost) return;
-  const snap=await db.ref('rooms/'+roomCode).get();
-  const data=snap.val();
-  const players=data.players||{};
-  const alive=Object.entries(players).filter(([,p])=>p.alive!==false);
-  const answers=data.roundAnswers||{};
-  const qIdx=data.currentQIdx||0;
-  const qs=data.questions||[];
+// ===== PILE SELECTION =====
+async function choosePile(pileNum){
+  if(state.myPileChoice !== null) return;
+  state.myPileChoice = pileNum;
 
-  const allDone=alive.every(([pid])=>(answers[pid]||[]).length>qIdx);
-  if(!allDone){ setTimeout(()=>checkAllAnswered(),1000); return; }
+  // Mark button selected
+  document.querySelectorAll('.pile-btn').forEach(b=>{
+    b.disabled = true;
+    if(parseInt(b.dataset.pile)===pileNum) b.classList.add('selected');
+  });
 
-  if(qIdx+1<qs.length){
-    await db.ref('rooms/'+roomCode).update({currentQIdx:qIdx+1});
-  } else {
-    // All questions done
-    await computeAndFinalize(data);
-  }
+  // Write to Firebase
+  await set(ref(db,'rooms/'+state.roomCode+'/pileChoices/'+state.playerId), pileNum);
+  document.getElementById('waiting-text').textContent = 'คุณเลือกกองที่ '+pileNum+' แล้ว รอผู้เล่นอื่น...';
 }
 
-// ===== COMPUTE RESULTS =====
-async function computeAndFinalize(data){
-  const day=data.currentDay, cfg=DAY[day];
-  const piles=data.piles, choices=data.roundChoices||{};
-  const isRob=data.isRobRound, robType=data.robType;
-  const rc=robType?ROB[robType]:null;
-  const answers=data.roundAnswers||{};
-  const players=data.players||{};
+// ===== LISTEN GAME =====
+function startListeningToGame(){
+  const roomRef = ref(db,'rooms/'+state.roomCode);
+  const unsub = onValue(roomRef, async snap=>{
+    if(!snap.exists()) return;
+    const room = snap.val();
+    const phase = room.phase;
 
-  const results={};
-  const playerUpdates={};
+    // Sync players
+    state.players = room.players || {};
+    state.day = room.day || 1;
+    state.round = room.round || 1;
 
-  Object.entries(choices).forEach(([pid,pileIdx])=>{
-    const player=players[pid];
-    if(!player||player.alive===false) return;
-    const pileType=piles[pileIdx]?.type;
-    const pAns=answers[pid]||[];
-    const allOk=pAns.length>0&&pAns.every(Boolean);
+    // Update current screen overlays
+    if(['select','question','result','summary','final'].includes(phase)){
+      if(document.getElementById('screen-game').classList.contains('active')){
+        updatePlayersStatus();
+      }
+    }
 
-    let moneyChange=0, heartChange=0, weaponChange=0, outcome='';
+    if(phase === 'select'){
+      if(!document.getElementById('screen-game').classList.contains('active')){
+        showGameBoard();
+      }
+      // Update choice indicators
+      const choices = room.pileChoices || {};
+      updateChoiceIndicators(choices);
 
-    if(!isRob){
-      if(pileType==='money'){ moneyChange=cfg.reward; outcome='money_normal'; }
-      else if(allOk){ moneyChange=cfg.gCorrect; outcome='gravel_correct'; }
-      else { moneyChange=0; outcome='gravel_wrong'; }
-    } else {
-      if(pileType==='money'){
-        moneyChange=rc.moneyPile; outcome='rob_money';
-      } else {
-        if(allOk){
-          moneyChange=rc.bonusCorrect; weaponChange=rc.weapon?1:0; outcome='rob_gravel_ok';
+      // Check if all chose
+      const activePlayers = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
+      const allChose = activePlayers.every(([pid])=>choices[pid]!==undefined);
+
+      if(allChose && state.isHost && !room._resolving){
+        await update(ref(db,'rooms/'+state.roomCode),{_resolving:true});
+        await resolveRound(room);
+      }
+    }
+
+    if(phase === 'emergency'){
+      showEmergency(room.emergencyData);
+    }
+
+    if(phase === 'question'){
+      if(!document.getElementById('screen-question').classList.contains('active')){
+        const pid = state.playerId;
+        const myPile = (room.pileChoices||{})[pid];
+        const pr = room.pileResults || {};
+        const myResult = pr[pid] || {};
+        if(myResult.hit === 'gravel'){
+          startQuestion(room.questionData, room.roundRobberTypes?.[state.round]);
         } else {
-          const hasWp=(player.weapons||0)>0;
-          if(hasWp){ weaponChange=-1; outcome='rob_gravel_weapon'; }
-          else { moneyChange=-rc.steal; heartChange=-rc.hLoss; outcome='rob_gravel_bad'; }
+          // Money — show wait
+          showWaitingForQuestion();
         }
       }
     }
 
-    results[pid]={ pileId:pileIdx, pileType, outcome, moneyChange, heartChange, weaponChange, allOk };
+    if(phase === 'result'){
+      showResult(room.resultData, room.pileResults, room.pileChoices);
+    }
 
-    const newM=Math.max(0,(player.money||150000000)+moneyChange);
-    const newH=Math.max(0,(player.hearts||5)+heartChange);
-    const newW=Math.max(0,(player.weapons||0)+weaponChange);
-    playerUpdates[pid]={ money:newM, hearts:newH, weapons:newW, alive:newH>0, status:'result' };
+    if(phase === 'summary'){
+      showSummary(room.summaryData);
+    }
+
+    if(phase === 'night-intro'){
+      showNightIntro(room.day);
+    }
+
+    if(phase === 'final'){
+      showFinal(room.finalData);
+    }
   });
-
-  await finalizeResults(data, results, playerUpdates);
+  state.listeners.push(unsub);
 }
 
-async function finalizeResults(data, results, playerUpdates={}){
-  // If no playerUpdates, compute from results
-  if(Object.keys(playerUpdates).length===0){
-    const players=data.players||{};
-    const cfg=DAY[data.currentDay];
-    Object.entries(results).forEach(([pid,r])=>{
-      const p=players[pid];
-      if(!p) return;
-      const newM=Math.max(0,(p.money||150000000)+r.moneyChange);
-      playerUpdates[pid]={ money:newM, hearts:p.hearts, weapons:p.weapons, alive:true, status:'result' };
+function updateChoiceIndicators(choices){
+  const container = document.getElementById('choice-indicators');
+  container.innerHTML = Object.entries(state.players)
+    .filter(([pid,p])=>!p.eliminated)
+    .map(([pid,p])=>`
+      <div class="choice-dot ${choices[pid]!==undefined?'chosen':''}">
+        <span style="font-size:0.9rem">${p.avatar}</span>
+      </div>
+    `).join('');
+}
+
+function showWaitingForQuestion(){
+  document.getElementById('screen-question').innerHTML = `
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:4rem;margin-bottom:16px">💰</div>
+      <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold)">คุณเจอถุงเงิน!</div>
+      <div style="color:var(--text-dim);margin-top:8px">รอผู้เล่นอื่นตอบคำถาม...</div>
+    </div>
+  `;
+  showScreen('screen-question');
+}
+
+// ===== RESOLVE ROUND (HOST ONLY) =====
+async function resolveRound(room){
+  const day = room.day;
+  const round = room.round;
+  const nc = NIGHT_CONFIG[day];
+  const isRobberRound = nc.robberRounds.includes(round);
+  const pileChoices = room.pileChoices || {};
+  const activePlayers = Object.entries(room.players).filter(([pid,p])=>!p.eliminated);
+  const pileCount = nc.piles;
+
+  // Day 3 wind scatter
+  let windScatter = false;
+  if(day === 3 && Math.random() < 0.15){
+    windScatter = true;
+  }
+
+  // Determine money piles
+  // Money pile probability reduced on robber rounds
+  let moneyOdds = 0.5; // base 50%
+  if(isRobberRound){
+    const rt = room.roundRobberTypes?.[round] || 'petty';
+    const reduction = ROBBER_TYPE[rt]?.moneyOddsReduction || NIGHT_CONFIG[day].moneyOddsReduction?.petty || 0.25;
+    moneyOdds = moneyOdds * (1 - reduction);
+  }
+
+  // Randomly assign each pile as money or gravel
+  const pileType = {};
+  for(let i=1;i<=pileCount;i++){
+    pileType[i] = Math.random() < moneyOdds ? 'money' : 'gravel';
+  }
+  // Ensure at least 1 money and 1 gravel if >1 pile
+  if(pileCount > 1){
+    const hasMoney = Object.values(pileType).includes('money');
+    const hasGravel = Object.values(pileType).includes('gravel');
+    if(!hasMoney){ const k=Object.keys(pileType)[0]; pileType[k]='money'; }
+    if(!hasGravel){ const k=Object.keys(pileType)[Object.keys(pileType).length-1]; pileType[k]='gravel'; }
+  }
+
+  // For robber round: which pile has the robber?
+  let robberPile = null;
+  const robberType = isRobberRound ? (room.roundRobberTypes?.[round] || 'petty') : null;
+  if(isRobberRound){
+    robberPile = Math.ceil(Math.random()*pileCount);
+    // Override: robber pile is gravel
+    pileType[robberPile] = 'gravel';
+  }
+
+  // Generate questions for robber round
+  let questionData = null;
+  if(isRobberRound){
+    const rt = ROBBER_TYPE[robberType];
+    const qCount = rt.questionCount;
+    const adjs = shuffleArray([...ADJECTIVES]).slice(0,qCount);
+    questionData = adjs.map(a=>{
+      const q = generateQuestion(a);
+      return { adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type}, correct:q.correct, choices:q.choices };
     });
   }
 
-  await db.ref('rooms/'+roomCode).update({ roundResults:results, phase:'result' });
-  for(const [pid,upd] of Object.entries(playerUpdates)){
-    await db.ref('rooms/'+roomCode+'/players/'+pid).update(upd);
-  }
-}
-
-// ===== BUILD RESULT =====
-function buildResult(data){
-  const day=data.currentDay, cfg=DAY[day];
-  const results=data.roundResults||{};
-  const players=data.players||{};
-  const isRob=data.isRobRound, robType=data.robType;
-  const rc=robType?ROB[robType]:null;
-  const me=results[myId];
-  const myPlayer=players[myId];
-
-  if(me){
-    let emoji='💰',title='',cls='good',sub='';
-    const oc=me.outcome;
-    if(oc==='money_normal'){emoji='💰';title='ได้เงิน!';sub=`+${fmt(cfg.reward)} บาท`;}
-    else if(oc==='gravel_correct'){emoji='✨';title='ตอบถูก!';sub=`+${fmt(cfg.gCorrect)} บาท`;}
-    else if(oc==='gravel_wrong'){emoji='🪨';title='ตอบผิด...';cls='bad';sub='ไม่ได้เงิน (ตอบคำถามผิด)';}
-    else if(oc==='rob_money'){emoji='💰';title='รอดจากโจร!';sub=`+${fmt(me.moneyChange)} บาท`;}
-    else if(oc==='rob_gravel_ok'){emoji='⚔️';title='สู้โจรชนะ!';sub=me.weaponChange?`+${fmt(me.moneyChange)} + ได้อาวุธ ⚔️`:`+${fmt(me.moneyChange)} บาท`;}
-    else if(oc==='rob_gravel_bad'){emoji='💸';title='โจรหนีเอาเงินไป!';cls='bad';sub=`เสีย ${fmt(Math.abs(me.moneyChange))} บาท`;}
-    else if(oc==='rob_gravel_weapon'){emoji='🛡️';title='อาวุธป้องกันได้!';sub='รอดจากความเสียหาย';}
-
-    document.getElementById('resEmoji').textContent=emoji;
-    document.getElementById('resTitle').textContent=title;
-    document.getElementById('resTitle').className='res-title '+cls;
-    document.getElementById('resSub').textContent=sub;
-
-    const det=document.getElementById('resDetail');
-    det.innerHTML=`
-      <div class="res-row"><span class="rl">กองที่เลือก</span><span class="rv neu">กองที่ ${(me.pileId||0)+1} · ${me.pileType==='money'?'💰 เงิน':'🪨 กรวด'}</span></div>
-      <div class="res-row"><span class="rl">เงินเปลี่ยน</span><span class="rv ${me.moneyChange>=0?'plus':'minus'}">${me.moneyChange>=0?'+':''}${fmt(me.moneyChange)}</span></div>
-      ${me.heartChange<0?`<div class="res-row"><span class="rl">หัวใจ</span><span class="rv minus">${me.heartChange} 🖤</span></div>`:''}
-      ${me.weaponChange>0?`<div class="res-row"><span class="rl">อาวุธ</span><span class="rv plus">+${me.weaponChange} ⚔️</span></div>`:''}
-      <div class="res-row"><span class="rl">💰 เงินปัจจุบัน</span><span class="rv plus">${fmt(myPlayer?.money||0)}</span></div>
-      <div class="res-row"><span class="rl">❤️ หัวใจ</span><span class="rv neu">${hearts(myPlayer?.hearts)}</span></div>
-    `;
-
-    // Show correct answer if wrong
-    const cb=document.getElementById('correctBox');
-    const qs=data.questions||[];
-    if(me.outcome==='gravel_wrong'||me.outcome==='rob_gravel_bad'){
-      cb.classList.remove('hidden');
-      const answers=data.roundAnswers?.[myId]||[];
-      const wrongIdx=answers.findIndex(a=>!a);
-      const wrongQ=qs[wrongIdx>=0?wrongIdx:0];
-      if(wrongQ) document.getElementById('correctAns').textContent=wrongQ.correct+' ('+wrongQ.word+' = '+wrongQ.meaning+')';
-    } else { cb.classList.add('hidden'); }
-  }
-
-  // All players results
-  const allRes=document.getElementById('allRes');
-  allRes.innerHTML='';
-  Object.entries(results).forEach(([pid,r])=>{
-    const p=players[pid];
-    if(!p) return;
-    const row=document.createElement('div');
-    row.className='ar-row';
-    const cls=r.moneyChange>0?'plus':r.moneyChange<0?'minus':'zero';
-    row.innerHTML=`
-      <span class="ar-name">${p.name}${pid===myId?' (ฉัน)':''}</span>
-      <span class="ar-pile">กอง${(r.pileId||0)+1}·${r.pileType==='money'?'💰':'🪨'}</span>
-      <span class="ar-out ${cls}">${r.moneyChange>=0?'+':''}${fmt(r.moneyChange)}</span>
-    `;
-    allRes.appendChild(row);
+  // Per-player pile result
+  const pileResults = {};
+  activePlayers.forEach(([pid,p])=>{
+    const chosen = pileChoices[pid];
+    const type = pileType[chosen] || 'gravel';
+    const hitRobber = isRobberRound && chosen === robberPile;
+    pileResults[pid] = { pile:chosen, type, hitRobber: hitRobber || false };
   });
 
-  // Ready button — each player clicks when ready
-  document.getElementById('btnNext').classList.remove('hidden');
-  document.getElementById('btnNext').disabled=false;
-  document.getElementById('btnNext').textContent='พร้อมรอบถัดไป ✓';
+  // Wind scatter for day 3: re-randomize choice
+  if(windScatter && isRobberRound){
+    // Players hitting non-robber piles may scatter
+    activePlayers.forEach(([pid,p])=>{
+      if(!pileResults[pid].hitRobber){
+        const newPile = Math.ceil(Math.random()*pileCount);
+        pileResults[pid].scattered = true;
+        pileResults[pid].pile = newPile;
+        pileResults[pid].type = pileType[newPile] || 'gravel';
+        pileResults[pid].hitRobber = isRobberRound && newPile === robberPile;
+      }
+    });
+  }
 
-  // Reset ready status
-  db.ref('rooms/'+roomCode+'/players/'+myId).update({status:'result'});
+  // If robber round: show emergency first
+  if(isRobberRound){
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase: 'emergency',
+      emergencyData: { robberType, robberPile, pileType, questionData, pileResults },
+      pileResults,
+      questionData,
+      _resolving: false
+    });
+
+    // Auto-advance to question after 4s
+    setTimeout(async()=>{
+      await update(ref(db,'rooms/'+state.roomCode),{ phase:'question' });
+    }, 4000);
+  } else {
+    // Normal round: skip to result directly
+    // Calculate results
+    const resultData = await calcNormalRoundResult(room, pileResults, pileType);
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase: 'result',
+      pileResults,
+      pileType,
+      resultData,
+      _resolving: false
+    });
+  }
 }
 
-async function playerReadyNext(){
-  document.getElementById('btnNext').disabled=true;
-  document.getElementById('btnNext').textContent='✓ รอคนอื่น...';
-  await db.ref('rooms/'+roomCode+'/roundReady/'+myId).set(true);
-  await db.ref('rooms/'+roomCode+'/players/'+myId).update({status:'ready'});
-  if(isHost) watchReady();
-}
+async function calcNormalRoundResult(room, pileResults, pileType){
+  const players = room.players;
+  const updates = {};
+  const perPlayer = {};
 
-async function watchReady(){
-  if(!isHost) return;
-  const snap=await db.ref('rooms/'+roomCode).get();
-  const data=snap.val();
-  const players=data.players||{};
-  const ready=data.roundReady||{};
-  const alive=Object.entries(players).filter(([,p])=>p.alive!==false);
-  if(Object.keys(ready).length>=alive.length){
-    await db.ref('rooms/'+roomCode).update({roundReady:{}});
-    // Next round or day summary
-    const day=data.currentDay, round=data.currentRound, cfg=DAY[day];
-    if(round>=cfg.rounds){
-      await db.ref('rooms/'+roomCode).update({phase:'daysummary'});
+  Object.entries(pileResults).forEach(([pid,pr])=>{
+    const p = players[pid];
+    if(!p || p.eliminated) return;
+    let moneyChange = 0;
+    let outcome = '';
+    if(pr.type === 'money'){
+      moneyChange = MONEY_NORMAL;
+      outcome = 'money';
     } else {
-      const fresh=await db.ref('rooms/'+roomCode).get();
-      await startRound(day, round+1, fresh.val());
+      outcome = 'gravel_no_question';
+      moneyChange = 0;
+    }
+    perPlayer[pid] = { moneyChange, outcome, name:p.name, avatar:p.avatar };
+    updates[`players/${pid}/money`] = (p.money||0) + moneyChange;
+  });
+
+  await update(ref(db,'rooms/'+state.roomCode), updates);
+  return { perPlayer, isRobberRound:false };
+}
+
+// ===== EMERGENCY =====
+function showEmergency(data){
+  if(!data) return;
+  const rt = ROBBER_TYPE[data.robberType] || ROBBER_TYPE.petty;
+  document.getElementById('emg-icon').textContent = rt.emoji;
+  const badge = document.getElementById('emg-robber-badge');
+  badge.className = 'robber-type-badge '+rt.badge;
+  badge.textContent = rt.name;
+  document.getElementById('emg-desc').textContent = 'โจรแอบซ่อนอยู่ในกองใดกองหนึ่ง เฝ้าระวังให้ดี!';
+  const extra = document.getElementById('emg-extra-info');
+  if(data.robberType === 'gang'){
+    extra.textContent = '⚠️ จะมีคำถามพิเศษ 4 ข้อ! ลดอัตราพบเงิน 50%';
+  } else if(data.robberType === 'boss'){
+    extra.textContent = '💀 หัวหน้าโจร! คำถาม 4 ข้อ ผิดเสียเงิน 850,000฿ + หัวใจ -1';
+  } else {
+    extra.textContent = 'โจรลูกกระจ๊อก — ถ้าผิดเสียเงิน 303,000฿ + หัวใจ -0.5';
+  }
+  showScreen('screen-emergency');
+}
+
+// ===== QUESTION =====
+function startQuestion(questionData, robberType){
+  if(!questionData || questionData.length === 0) return;
+  const rt = ROBBER_TYPE[robberType] || ROBBER_TYPE.petty;
+
+  state.currentQuestions = questionData;
+  state.currentQIndex = 0;
+  state.qAnswers = [];
+  state.currentRobberType = robberType;
+
+  renderQuestion();
+  showScreen('screen-question');
+}
+
+let qTimer = null;
+function renderQuestion(){
+  const idx = state.currentQIndex;
+  const total = state.currentQuestions.length;
+  const qdata = state.currentQuestions[idx];
+  const rt = ROBBER_TYPE[state.currentRobberType] || ROBBER_TYPE.petty;
+
+  // Header
+  const badge = document.getElementById('q-robber-badge');
+  badge.textContent = rt.emoji+' '+rt.name;
+  badge.className = 'q-robber-badge';
+  badge.style.background = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
+  badge.style.color = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
+
+  document.getElementById('q-count').textContent = `คำถามที่ ${idx+1} / ${total}`;
+
+  // Multi-Q progress
+  const prog = document.getElementById('multi-q-progress');
+  prog.innerHTML = Array.from({length:total},(_,i)=>{
+    let cls = 'mq-dot';
+    if(i < idx) cls += state.qAnswers[i]?.' done-correct':'mq-dot done-wrong';
+    if(i === idx) cls += ' current';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
+  // Question content
+  document.getElementById('q-word').textContent = qdata.adj.word;
+  const typeBadge = document.getElementById('q-type-badge');
+  typeBadge.textContent = qdata.adj.type==='i'?'い-adj':'な-adj';
+  typeBadge.className = 'q-type-badge '+(qdata.adj.type==='i'?'i-adj':'na-adj');
+  document.getElementById('q-prompt').textContent = `"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน`;
+
+  // Choices
+  const grid = document.getElementById('choices-grid');
+  grid.innerHTML = qdata.choices.map((c,i)=>`
+    <button class="choice-btn" onclick="answerQ('${c.replace(/'/g,"\\'")}')">
+      ${c}
+    </button>
+  `).join('');
+
+  // Feedback
+  document.getElementById('q-feedback').textContent = '';
+
+  // Timer
+  clearInterval(qTimer);
+  let timeLeft = 20;
+  document.getElementById('q-timer').textContent = timeLeft;
+  qTimer = setInterval(()=>{
+    timeLeft--;
+    document.getElementById('q-timer').textContent = timeLeft;
+    if(timeLeft<=0){
+      clearInterval(qTimer);
+      answerQ('__timeout__');
+    }
+  },1000);
+}
+
+window.answerQ = function(answer){
+  clearInterval(qTimer);
+  const idx = state.currentQIndex;
+  const qdata = state.currentQuestions[idx];
+  const correct = qdata.correct;
+  const isCorrect = answer === correct && answer !== '__timeout__';
+
+  // Update progress dot
+  const dots = document.querySelectorAll('.mq-dot');
+  if(dots[idx]){
+    dots[idx].classList.remove('current');
+    dots[idx].classList.add(isCorrect?'done-correct':'done-wrong');
+  }
+
+  // Color choices
+  document.querySelectorAll('.choice-btn').forEach(btn=>{
+    btn.disabled = true;
+    if(btn.textContent.trim() === correct) btn.classList.add('correct');
+    else if(btn.textContent.trim() === answer && !isCorrect) btn.classList.add('wrong');
+  });
+
+  document.getElementById('q-feedback').textContent = isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด — คำตอบคือ: ${correct}`;
+  document.getElementById('q-feedback').style.color = isCorrect?'var(--accent-green)':'var(--accent-red)';
+
+  state.qAnswers.push({ answer, correct: isCorrect, word: qdata.adj.word });
+
+  setTimeout(()=>{
+    state.currentQIndex++;
+    if(state.currentQIndex < state.currentQuestions.length){
+      renderQuestion();
+    } else {
+      // Done all questions — write answers to Firebase
+      submitAnswers();
+    }
+  }, 1200);
+};
+
+async function submitAnswers(){
+  const allCorrect = state.qAnswers.every(a=>a.correct);
+  await set(ref(db,'rooms/'+state.roomCode+'/answers/'+state.playerId),{
+    answers: state.qAnswers,
+    allCorrect,
+    done: true,
+    timestamp: Date.now()
+  });
+
+  showScreen('screen-question');
+  document.getElementById('screen-question').innerHTML = `
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:3rem;margin-bottom:12px">${allCorrect?'✅':'❌'}</div>
+      <div style="font-size:1.2rem;font-weight:700;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'}">${allCorrect?'ตอบถูกทุกข้อ!':'ตอบผิด!'}</div>
+      <div style="color:var(--text-dim);margin-top:8px">รอผลรวมจากทุกคน...</div>
+    </div>
+  `;
+
+  // Host waits for all to answer, then resolves
+  if(state.isHost){
+    waitAndResolveQuestions();
+  }
+}
+
+async function waitAndResolveQuestions(){
+  // Poll until all gravel-hitters answered
+  const pollInterval = setInterval(async()=>{
+    const snap = await get(ref(db,'rooms/'+state.roomCode));
+    if(!snap.exists()){ clearInterval(pollInterval); return; }
+    const room = snap.val();
+    const pileResults = room.pileResults || {};
+    const answers = room.answers || {};
+
+    const gravelPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.hitRobber||pr.type==='gravel');
+    const allAnswered = gravelPlayers.every(([pid])=>answers[pid]?.done);
+
+    if(allAnswered){
+      clearInterval(pollInterval);
+      await resolveRobberRound(room);
+    }
+  }, 1000);
+}
+
+async function resolveRobberRound(room){
+  const pileResults = room.pileResults || {};
+  const answers = room.answers || {};
+  const players = room.players;
+  const robberType = room.emergencyData?.robberType || 'petty';
+  const rt = ROBBER_TYPE[robberType];
+  const updates = {};
+  const perPlayer = {};
+
+  Object.entries(pileResults).forEach(([pid,pr])=>{
+    const p = players[pid];
+    if(!p || p.eliminated) return;
+    let moneyChange = 0;
+    let heartChange = 0;
+    let weaponChange = 0;
+    let outcome = '';
+    let useWeapon = false;
+
+    if(pr.type === 'money' || !pr.hitRobber){
+      // Hit money / non-robber gravel in robber round
+      if(pr.type === 'money'){
+        moneyChange = rt.moneyGain;
+        outcome = 'money_robber_fled';
+      } else {
+        // Gravel but not robber pile — treat as normal gravel (no question penalty in robber round)
+        outcome = 'gravel_safe';
+        moneyChange = 0;
+      }
+    } else {
+      // Hit robber pile!
+      const ans = answers[pid];
+      const correct = ans?.allCorrect || false;
+      if(correct){
+        moneyChange = rt.bonusOnWin || 0;
+        weaponChange = rt.weaponOnWin ? 1 : 0;
+        outcome = 'robber_won';
+      } else {
+        // Lost to robber
+        if((p.weapons||0) > 0){
+          useWeapon = true;
+          weaponChange = -1;
+          moneyChange = 0;
+          heartChange = 0;
+          outcome = 'weapon_blocked';
+        } else {
+          moneyChange = -rt.lossOnFail;
+          heartChange = -rt.heartLoss;
+          outcome = 'robber_lost';
+        }
+      }
+    }
+
+    const newMoney = Math.max(0,(p.money||0)+moneyChange);
+    const newHearts = Math.max(0,(p.hearts||5)+heartChange);
+    const newWeapons = Math.max(0,(p.weapons||0)+weaponChange);
+
+    updates[`players/${pid}/money`] = newMoney;
+    updates[`players/${pid}/hearts`] = newHearts;
+    updates[`players/${pid}/weapons`] = newWeapons;
+    if(newHearts <= 0) updates[`players/${pid}/eliminated`] = true;
+
+    perPlayer[pid] = {
+      name:p.name, avatar:p.avatar,
+      moneyChange, heartChange, weaponChange,
+      outcome, useWeapon,
+      newMoney, newHearts, newWeapons,
+      pile: pr.pile
+    };
+  });
+
+  await update(ref(db,'rooms/'+state.roomCode), updates);
+
+  // Log QA
+  const qaLog = [];
+  Object.entries(answers).forEach(([pid,a])=>{
+    const p = players[pid];
+    if(!p) return;
+    a.answers?.forEach((qa,i)=>{
+      qaLog.push({ player:p.name, word:qa.word, correct:qa.correct });
+    });
+  });
+
+  await update(ref(db,'rooms/'+state.roomCode),{
+    phase:'result',
+    resultData:{ perPlayer, isRobberRound:true, robberType },
+    qaLogRound: qaLog,
+    _resolving: false
+  });
+}
+
+// ===== RESULT =====
+function showResult(resultData, pileResults, pileChoices){
+  if(!resultData) return;
+  const { perPlayer, isRobberRound, robberType } = resultData;
+  const myData = perPlayer?.[state.playerId];
+
+  let icon = '💰', title = 'รอบนี้ผ่านไป', sub = '';
+  if(myData){
+    if(myData.outcome==='money') { icon='💰'; title='เจอถุงเงิน!'; sub=fmtMoney(myData.moneyChange); }
+    else if(myData.outcome==='money_robber_fled') { icon='💰'; title='เจอเงิน! โจรหนีไป'; sub=fmtMoney(myData.moneyChange); }
+    else if(myData.outcome==='robber_won') { icon='⚔️'; title='เอาชนะโจรได้!'; sub=myData.moneyChange>0?fmtMoney(myData.moneyChange):'รักษาเงินไว้ได้'; }
+    else if(myData.outcome==='robber_lost') { icon='😱'; title='โดนโจรขโมย!'; sub=fmtMoney(myData.moneyChange); }
+    else if(myData.outcome==='weapon_blocked') { icon='⚔️'; title='อาวุธป้องกันได้!'; sub='รอดโดยใช้อาวุธ'; }
+    else if(myData.outcome==='gravel_safe') { icon='🪨'; title='เจอกรวด'; sub='รอบโจร — ปลอดภัย'; }
+    else { icon='🪨'; title='เจอกรวด'; sub='ไม่ได้เงินในรอบนี้'; }
+  }
+
+  document.getElementById('result-icon').textContent = icon;
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-sub').textContent = sub;
+
+  // Breakdown for my result
+  const breakdown = document.getElementById('result-breakdown');
+  if(myData){
+    breakdown.innerHTML = `
+      <div class="result-row"><span class="label">เงิน</span><span class="value ${myData.moneyChange>0?'gain':myData.moneyChange<0?'loss':'neutral'}">${myData.moneyChange>0?'+':''}${myData.moneyChange.toLocaleString()} ฿</span></div>
+      ${myData.heartChange?`<div class="result-row"><span class="label">หัวใจ</span><span class="value loss">${myData.heartChange}</span></div>`:''}
+      ${myData.weaponChange>0?`<div class="result-row"><span class="label">อาวุธ</span><span class="value gain">+${myData.weaponChange} ⚔️</span></div>`:''}
+      ${myData.useWeapon?`<div class="result-row"><span class="label">ใช้อาวุธ</span><span class="value neutral">⚔️ -1 (ป้องกันความเสียหาย)</span></div>`:''}
+      <div class="result-row"><span class="label">เงินรวม</span><span class="value gold">${(myData.newMoney||0).toLocaleString()} ฿</span></div>
+      <div class="result-row"><span class="label">หัวใจ</span><span class="value">${heartsDisplay(myData.newHearts||5)}</span></div>
+    `;
+  }
+
+  // All players
+  const apr = document.getElementById('all-players-results');
+  apr.innerHTML = Object.entries(perPlayer||{}).map(([pid,pd])=>`
+    <div class="apr-item">
+      <span>${pd.avatar}</span>
+      <span class="apr-name">${pd.name}</span>
+      <span class="apr-pile">กอง ${pd.pile}</span>
+      <span class="apr-outcome" style="color:${pd.moneyChange>0?'var(--accent-green)':pd.moneyChange<0?'var(--accent-red)':'var(--text-dim)'}">
+        ${pd.moneyChange>0?'+':''}${pd.moneyChange.toLocaleString()}฿
+      </span>
+    </div>
+  `).join('');
+
+  // Next button — host only
+  const nextBtn = document.getElementById('result-next-btn');
+  const nextInfo = document.getElementById('result-next-info');
+  if(state.isHost){
+    nextBtn.style.display = 'block';
+    const round = state.round;
+    if(round >= 10){
+      nextBtn.textContent = '📊 สรุปวัน →';
+    } else {
+      nextBtn.textContent = 'รอบถัดไป →';
     }
   } else {
-    setTimeout(()=>watchReady(),1500);
+    nextBtn.style.display = 'none';
+    nextInfo.textContent = 'รอ Host นำไปรอบถัดไป...';
   }
+
+  showScreen('screen-result');
 }
 
-// ===== DAY SUMMARY =====
-function buildSummary(data){
-  const day=data.currentDay, cfg=DAY[day];
-  document.getElementById('sumTitle').textContent='สรุปคืนที่ '+day;
-  document.getElementById('sumNight').textContent=cfg.night+' '+cfg.nName;
+window.resultNextRound = async function(){
+  if(!state.isHost) return;
+  const round = state.round;
+  const day = state.day;
 
-  const players=data.players||{};
-  const sorted=Object.entries(players).filter(([,p])=>p).sort(([,a],[,b])=>(b.money||0)-(a.money||0));
-  const list=document.getElementById('sumRanking');
-  list.innerHTML='';
-  sorted.forEach(([pid,p],i)=>{
-    const item=document.createElement('div');
-    item.className='rank-item'+(i===0?' r1':'');
-    item.innerHTML=`<div class="rank-num2">${i+1}</div><div class="rank-name">${p.name}${pid===myId?' 👈':''}</div><div class="rank-money">${fmt(p.money)}</div><div style="font-size:.78rem">${hearts(p.hearts)}</div>`;
-    list.appendChild(item);
-  });
-
-  if(isHost){ document.getElementById('btnSumNext').classList.remove('hidden'); document.getElementById('sumGuestMsg').classList.add('hidden'); }
-  else { document.getElementById('btnSumNext').classList.add('hidden'); document.getElementById('sumGuestMsg').classList.remove('hidden'); }
-}
-
-async function hostNextDay(){
-  if(!isHost) return;
-  const snap=await db.ref('rooms/'+roomCode).get();
-  const data=snap.val();
-  const day=data.currentDay;
-  if(day>=3){
-    await db.ref('rooms/'+roomCode).update({phase:'final'});
+  if(round >= 10){
+    // Go to summary
+    const snap = await get(ref(db,'rooms/'+state.roomCode));
+    const room = snap.val();
+    const summaryData = buildSummaryData(room, day);
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase:'summary',
+      summaryData,
+      round: round
+    });
   } else {
-    await db.ref('rooms/'+roomCode).update({phase:'dayintro',currentDay:day+1,currentRound:0});
+    // Next round
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase:'select',
+      round: round+1,
+      pileChoices:{},
+      pileResults:null,
+      answers:{},
+      resultData:null,
+      _resolving:false
+    });
+    state.round = round+1;
+    showGameBoard();
   }
+};
+
+function buildSummaryData(room, day){
+  const players = room.players || {};
+  const sorted = Object.entries(players)
+    .map(([pid,p])=>({...p,pid}))
+    .sort((a,b)=>b.money-a.money);
+  return { sorted, day, qaLog: room.qaLogRound || [] };
 }
 
-// ===== FINAL =====
-function buildFinal(data){
-  const players=data.players||{};
-  const sortedFixed=Object.entries(players).filter(([,p])=>p).sort(([,a],[,b])=>{
-    if((b.money||0)!==(a.money||0)) return (b.money||0)-(a.money||0);
-    return (b.hearts||0)-(a.hearts||0);
-  });
+// ===== SUMMARY =====
+function showSummary(data){
+  if(!data) return;
+  const nc = NIGHT_CONFIG[data.day];
+  document.getElementById('summary-day-title').textContent = '📊 สรุปวันที่ '+data.day;
+  document.getElementById('summary-night-emoji').textContent = nc.emoji+' '+nc.name;
 
-  if(sortedFixed.length===0) return;
-  const [,winner]=sortedFixed[0];
-  const [,loser]=sortedFixed[sortedFixed.length-1];
+  const tbody = document.getElementById('summary-tbody');
+  tbody.innerHTML = (data.sorted||[]).map((p,i)=>`
+    <tr class="${p.eliminated?'elim-row':'rank-'+(i+1)}">
+      <td>${p.eliminated?'💀':['🥇','🥈','🥉'][i]||i+1}</td>
+      <td>${p.avatar} ${p.name}</td>
+      <td>${fmtMoneyAbs(p.money)}</td>
+      <td>${heartsDisplay(p.hearts)}</td>
+      <td>${p.weapons>0?'⚔️×'+p.weapons:'—'}</td>
+    </tr>
+  `).join('');
 
-  document.getElementById('winName').textContent='🏆 '+winner.name;
-  document.getElementById('winMoney').textContent=fmt(winner.money)+' บาท · '+hearts(winner.hearts);
+  const qaLog = document.getElementById('summary-qa-log');
+  qaLog.innerHTML = (data.qaLog||[]).map(log=>`
+    <div style="padding:4px 8px;background:rgba(255,255,255,0.03);border-radius:6px;border-left:3px solid ${log.correct?'var(--accent-green)':'var(--accent-red)'}">
+      ${log.player}: ${log.word} → ${log.correct?'✅ ถูก':'❌ ผิด'}
+    </div>
+  `).join('') || '<div style="color:var(--text-dim)">ไม่มีคำถามในวันนี้</div>';
 
-  const list=document.getElementById('finalRanking');
-  list.innerHTML='';
-  sortedFixed.forEach(([pid,p],i)=>{
-    const item=document.createElement('div');
-    item.className='rank-item'+(i===0?' r1':'');
-    item.innerHTML=`<div class="rank-num2">${i+1}</div><div class="rank-name">${p.name}${pid===myId?' 👈':''}</div><div class="rank-money">${fmt(p.money)}</div><div style="font-size:.78rem">${hearts(p.hearts)}</div>`;
-    list.appendChild(item);
-  });
-  document.getElementById('loserText').textContent=loser.name+' ต้องผันคำคุณศัพท์ 70 คำพร้อมกัน! 📖';
-}
-
-// ===== HOST DASHBOARD =====
-function showHostDash(){
-  prevDashScreen='gameboard';
-  show('hostdash');
-  refreshDash();
-}
-
-function closeDash(){ show(prevDashScreen||'gameboard'); }
-
-async function refreshDash(){
-  if(!document.getElementById('hostdash').classList.contains('active')) return;
-  const snap=await db.ref('rooms/'+roomCode).get();
-  if(snap.exists()) updateDash(snap.val());
-  setTimeout(()=>{ if(document.getElementById('hostdash').classList.contains('active')) refreshDash(); },3000);
-}
-
-function updateDash(data){
-  const players=data.players||{};
-  const sorted=Object.entries(players).filter(([,p])=>p).sort(([,a],[,b])=>(b.money||0)-(a.money||0));
-  const tbody=document.getElementById('dashBody');
-  tbody.innerHTML='';
-  sorted.forEach(([pid,p],i)=>{
-    const status=p.status||'waiting';
-    let dotClass='status-dot';
-    if(status==='picked'||status==='answered') dotClass+=' done';
-    else if(status==='picking') dotClass+=' picking';
-    else if(status==='question') dotClass+=' question';
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td><span class="rank-num">${i+1}</span></td>
-      <td>${p.name}${pid===myId?' (ฉัน)':''}</td>
-      <td class="money-cell">${fmt(p.money)}</td>
-      <td style="font-size:.8rem">${hearts(p.hearts)}</td>
-      <td style="color:var(--weapon)">${p.weapons||0}</td>
-      <td><span class="${dotClass}"></span> ${status}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function hostForceNext(){
-  if(!isHost){ toast('Host เท่านั้น','err'); return; }
-  const snap=await db.ref('rooms/'+roomCode).get();
-  const data=snap.val();
-  const day=data.currentDay, round=data.currentRound, cfg=DAY[day];
-  await db.ref('rooms/'+roomCode).update({roundReady:{}});
-  if(round>=cfg.rounds){
-    await db.ref('rooms/'+roomCode).update({phase:'daysummary'});
+  const nextBtn = document.getElementById('summary-next-btn');
+  const nextLabel = document.getElementById('summary-next-label');
+  if(state.isHost){
+    nextBtn.style.display = 'block';
+    if(data.day >= 3){
+      nextLabel.textContent = '🏁 จบเกม!';
+    } else {
+      nextLabel.textContent = 'คืนถัดไป →';
+    }
   } else {
-    await startRound(day,(round||0)+1,data);
+    nextBtn.style.display = 'none';
   }
-  closeDash();
-  toast('บังคับไปรอบถัดไปแล้ว','ok');
+
+  showScreen('screen-summary');
 }
 
-// ===== PLAYER BAR =====
-function updatePlayersBar(players, choices){
-  const bar=document.getElementById('playersBar');
-  bar.innerHTML='';
-  Object.entries(players||{}).forEach(([pid,p])=>{
-    if(!p) return;
-    const el=document.createElement('div');
-    el.className='pcard'+(pid===myId?' me':'');
-    const chosen=choices[pid]!==undefined;
-    el.innerHTML=`
-      <div class="pn">${p.name}</div>
-      <div class="pm">${fmtS(p.money)}</div>
-      <div class="ph">${hearts(p.hearts)}</div>
-      <div class="pw">${(p.weapons||0)>0?'⚔️'.repeat(Math.min(p.weapons,3)):''}</div>
-      ${chosen?`<div class="done-badge">✓</div>`:''}
-    `;
-    bar.appendChild(el);
+window.summaryNext = async function(){
+  if(!state.isHost) return;
+  const day = state.day;
+
+  if(day >= 3){
+    // Final
+    const snap = await get(ref(db,'rooms/'+state.roomCode));
+    const room = snap.val();
+    const finalData = buildFinalData(room);
+    await update(ref(db,'rooms/'+state.roomCode),{ phase:'final', finalData });
+  } else {
+    // Next day
+    const nextDay = day+1;
+    state.day = nextDay;
+
+    // Prepare robber types for next day
+    const nc = NIGHT_CONFIG[nextDay];
+    const roundRobberTypes = {};
+    nc.robberRounds.forEach(r=>{
+      roundRobberTypes[r] = rollRobberType(nextDay);
+    });
+
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase:'night-intro',
+      day:nextDay,
+      round:1,
+      roundRobberTypes,
+      pileChoices:{},
+      pileResults:null,
+      answers:{},
+      resultData:null,
+      dayQALog:[]
+    });
+  }
+};
+
+function buildFinalData(room){
+  const players = room.players || {};
+  const alive = Object.entries(players)
+    .filter(([pid,p])=>!p.eliminated)
+    .map(([pid,p])=>({...p,pid}))
+    .sort((a,b)=>b.money-a.money||(b.hearts-a.hearts));
+  const eliminated = Object.entries(players)
+    .filter(([pid,p])=>p.eliminated)
+    .map(([pid,p])=>({...p,pid}));
+  const all = [...alive, ...eliminated];
+  const loser = [...Object.values(players)].filter(p=>!p.eliminated).sort((a,b)=>a.money-b.money)[0]
+    || eliminated[0];
+  return { all, loser };
+}
+
+function showFinal(data){
+  if(!data) return;
+  const { all, loser } = data;
+  const winner = all[0];
+
+  document.getElementById('winner-name').textContent = (winner?.avatar||'')+(winner?.name||'—');
+  document.getElementById('winner-money').textContent = fmtMoneyAbs(winner?.money||0);
+
+  const tbody = document.getElementById('final-tbody');
+  tbody.innerHTML = all.map((p,i)=>`
+    <tr class="${p.eliminated?'elim-row':'rank-'+(i+1)}">
+      <td>${p.eliminated?'💀':['🥇','🥈','🥉'][i]||i+1}</td>
+      <td>${p.avatar} ${p.name}</td>
+      <td>${fmtMoneyAbs(p.money)}</td>
+      <td>${heartsDisplay(p.hearts)}</td>
+    </tr>
+  `).join('');
+
+  const pun = document.getElementById('punishment-text');
+  if(loser){
+    pun.innerHTML = `😱 <strong>${loser.avatar} ${loser.name}</strong> ต้องผันคำคุณศัพท์ <strong>70 คำ</strong> เป็นการลงโทษ!<br><br>ผันคำเหล่านี้เป็นรูปปฏิเสธปัจจุบัน (ไม่ตาย ไม่แพ้ ไม่ยอม แต่ต้องผัน 70 คำ! 😂)`;
+  }
+
+  showScreen('screen-final');
+}
+
+function listenForPhaseChange(targetPhase){
+  const roomRef = ref(db,'rooms/'+state.roomCode);
+  const unsub = onValue(roomRef, snap=>{
+    if(!snap.exists()) return;
+    const room = snap.val();
+    if(room.phase === targetPhase){
+      state.day = room.day;
+      state.round = room.round;
+      state.players = room.players || {};
+      startListeningToGame();
+      showGameBoard();
+    }
   });
+  state.listeners.push(unsub);
 }
 
-function updateMyBar(p){
-  if(!p) return;
-  document.getElementById('myMoneyLabel').textContent=fmt(p.money);
-  document.getElementById('myHeartsLabel').textContent=hearts(p.hearts);
-  document.getElementById('myWeaponLabel').textContent=p.weapons||0;
-}
+window.backToTitle = function(){
+  state.listeners.forEach(unsub=>{ try{unsub();}catch(e){} });
+  state.listeners = [];
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, listeners:[] };
+  showScreen('screen-title');
+};
+
 </script>
 </body>
 </html>
