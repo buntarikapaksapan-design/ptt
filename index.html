@@ -1599,10 +1599,7 @@ async function resolveRound(room){
       questionData,
       _resolving: false
     });
-    // Auto-advance to question after 4s
-    setTimeout(async()=>{
-      await update(ref(db,'rooms/'+state.roomCode),{ phase:'question' });
-    }, 4000);
+    // Host presses button manually to continue (hostContinueFromEmergency)
   } else {
     // Normal round: check if anyone hit gravel → go to question
     const anyGravel = Object.values(pileResults).some(pr=>pr.type==='gravel');
@@ -1631,24 +1628,41 @@ async function calcNormalRoundResult(room, pileResults, pileType){
 }
 
 // ===== EMERGENCY =====
+const ROBBER_TAUNTS = {
+  petty: ['โจรคนเดียวก็กล้ามาแล้ว! 😤','อย่าประมาทนะ ถึงจะแค่ลูกกระจ๊อก! 🦹','โจรแค่คนเดียว...หรือเปล่า? 👀','เขาเล็กแต่ฉลาด ระวังให้ดี! 😏'],
+  gang: ['โจรมาเป็นกลุ่มแล้ว! ใจแข็งเข้าไว้! 😱','หลายคนหลายมือ ระวังกองไหนคือกับดัก! 🦹🦹','กลุ่มโจรมา... คิดดีๆ ก่อนเลือกนะ! 🤔'],
+  boss: ['หัวหน้าโจรมาเอง!! อย่าสะเทือน!! 💀','บอสมาแล้ว!! ผันให้ถูกไม่งั้นเจ็บหนักมาก! 😈','หัวหน้าโจรโผล่!! คืนนี้อันตรายสุดขีด! ⚠️']
+};
 function showEmergency(data){
   if(!data) return;
+  if(document.getElementById('screen-emergency').classList.contains('active')) return;
   const rt = ROBBER_TYPE[data.robberType] || ROBBER_TYPE.petty;
-  document.getElementById('emg-icon').textContent = rt.emoji;
-  const badge = document.getElementById('emg-robber-badge');
-  badge.className = 'robber-type-badge '+rt.badge;
-  badge.textContent = rt.name;
-  document.getElementById('emg-desc').textContent = 'โจรแอบซ่อนอยู่ในกองใดกองหนึ่ง เฝ้าระวังให้ดี!';
-  const extra = document.getElementById('emg-extra-info');
-  if(data.robberType === 'gang'){
-    extra.textContent = '⚠️ จะมีคำถามพิเศษ 4 ข้อ! ลดอัตราพบเงิน 50%';
-  } else if(data.robberType === 'boss'){
-    extra.textContent = '💀 หัวหน้าโจร! คำถาม 4 ข้อ ผิดเสียเงิน 850,000฿ + หัวใจ -1';
-  } else {
-    extra.textContent = 'โจรลูกกระจ๊อก — ถ้าผิดเสียเงิน 303,000฿ + หัวใจ -0.5';
-  }
+  const taunts = ROBBER_TAUNTS[data.robberType] || ROBBER_TAUNTS.petty;
+  const taunt = taunts[Math.floor(Math.random()*taunts.length)];
+
+  const screen = document.getElementById('screen-emergency');
+  screen.innerHTML = `
+    <div class="emergency-panel slide-up">
+      <div class="emergency-icon">${rt.emoji}</div>
+      <div class="emergency-title">⚠️ มีโจร!</div>
+      <div class="robber-type-badge ${rt.badge}">${rt.name}</div>
+      <div style="font-size:1.1rem;color:#ffaaaa;margin:12px 0;font-weight:600">${taunt}</div>
+      <div class="emergency-desc" style="margin-bottom:8px">โจรแอบซ่อนอยู่ในกองใดกองหนึ่ง เฝ้าระวังให้ดี!</div>
+      <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:20px">
+        ${data.robberType==='boss'?'💀 ผิด: เสียเงิน 850,000฿ + หัวใจ -1 | ถูก: +โบนัส + ⚔️ อาวุธ':
+          data.robberType==='gang'?'⚠️ ผิด: เสียเงิน 530,000฿ + หัวใจ -0.5 | ถูก: +50,000฿':
+          '🦹 ผิด: เสียเงิน 303,000฿ + หัวใจ -0.5 | ถูก: รักษาเงินไว้ได้'}
+      </div>
+      ${state.isHost ? `<button class="btn btn-red" onclick="hostContinueFromEmergency()" style="min-width:160px">ไปต่อ →</button>` :
+        `<div style="color:var(--text-dim);font-size:0.85rem">รอ Host นำไปต่อ...</div>`}
+    </div>
+  `;
   showScreen('screen-emergency');
 }
+
+window.hostContinueFromEmergency = async function(){
+  await update(ref(db,'rooms/'+state.roomCode),{ phase:'question' });
+};
 
 // ===== QUESTION =====
 function startQuestion(questionData, robberType){
@@ -1689,7 +1703,13 @@ function renderQuestion(){
     </button>
   `).join('');
 
-  // Rebuild the whole panel fresh every time — prevents null element errors
+  // Furigana: show reading below/above the word
+  const furiganaHTML = `
+    <ruby style="font-size:2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif;ruby-align:center">
+      ${qdata.adj.word}
+      <rt style="font-size:0.7rem;color:var(--text-dim);font-weight:400;letter-spacing:1px">${qdata.adj.reading}</rt>
+    </ruby>`;
+
   const screen = document.getElementById('screen-question');
   screen.innerHTML = `
     <div class="panel question-panel slide-up">
@@ -1698,22 +1718,18 @@ function renderQuestion(){
         <span style="color:var(--text-dim);font-size:0.85rem">คำถามที่ ${idx+1} / ${total}</span>
         <div class="q-timer" id="q-timer">20</div>
       </div>
-
       <div class="multi-q-progress">${progressDots}</div>
-
       <div class="question-box">
-        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:8px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
-        <div style="font-size:2.2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">${qdata.adj.word}</div>
-        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:6px">${typeLabel}</div>
+        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
+        <div style="margin:8px 0">${furiganaHTML}</div>
+        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:8px">${typeLabel}</div>
       </div>
-
       <div class="choices-grid">${choicesHTML}</div>
-
       <div id="q-feedback" style="text-align:center;padding:10px;font-size:0.9rem;min-height:40px"></div>
     </div>
   `;
 
-  // Timer
+  // Timer — auto timeout only, no auto-next between questions
   clearInterval(qTimer);
   let timeLeft = 20;
   qTimer = setInterval(()=>{
@@ -1741,7 +1757,6 @@ window.answerQ = function(answer){
   const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
   const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
 
-  // Rebuild progress dots with current answer
   const progressDots = Array.from({length:total},(_,i)=>{
     let cls = 'mq-dot';
     if(i < state.qAnswers.length) cls += state.qAnswers[i]?.correct ? ' done-correct' : ' done-wrong';
@@ -1749,7 +1764,6 @@ window.answerQ = function(answer){
     return `<div class="${cls}"></div>`;
   }).join('');
 
-  // Rebuild choices with color feedback
   const choicesHTML = qdata.choices.map(c=>{
     let cls = 'choice-btn';
     if(c === correct) cls += ' correct';
@@ -1759,34 +1773,44 @@ window.answerQ = function(answer){
 
   const typeClass = qdata.adj.type==='i'?'i-adj':'na-adj';
   const typeLabel = qdata.adj.type==='i'?'い-adj':'な-adj';
+  const furiganaHTML = `
+    <ruby style="font-size:2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">
+      ${qdata.adj.word}<rt style="font-size:0.7rem;color:var(--text-dim);font-weight:400">${qdata.adj.reading}</rt>
+    </ruby>`;
+
+  const isLast = (state.currentQIndex >= total);
+  const nextLabel = isLast ? (state.qAnswers.length >= total ? 'ส่งคำตอบ →' : 'ข้อถัดไป →') : 'ข้อถัดไป →';
 
   document.getElementById('screen-question').innerHTML = `
     <div class="panel question-panel slide-up">
       <div class="question-header">
-        <span class="q-robber-badge" style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor};padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700">${rt.emoji} ${rt.name}</span>
+        <span style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor};padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700">${rt.emoji} ${rt.name}</span>
         <span style="color:var(--text-dim);font-size:0.85rem">คำถามที่ ${idx+1} / ${total}</span>
       </div>
       <div class="multi-q-progress">${progressDots}</div>
       <div class="question-box">
-        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:8px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
-        <div style="font-size:2.2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">${qdata.adj.word}</div>
-        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:6px">${typeLabel}</div>
+        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
+        <div style="margin:8px 0">${furiganaHTML}</div>
+        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:8px">${typeLabel}</div>
       </div>
       <div class="choices-grid">${choicesHTML}</div>
-      <div style="text-align:center;padding:10px;font-size:1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
+      <div style="text-align:center;padding:10px;font-size:1.1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
         ${isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด — คำตอบคือ: ${correct}`}
       </div>
+      <button class="btn btn-gold" style="width:100%;margin-top:8px" onclick="nextQuestion()">
+        ${state.qAnswers.length >= total ? 'ส่งคำตอบ →' : 'ข้อถัดไป →'}
+      </button>
     </div>
   `;
+};
 
-  setTimeout(()=>{
-    state.currentQIndex++;
-    if(state.currentQIndex < state.currentQuestions.length){
-      renderQuestion();
-    } else {
-      submitAnswers();
-    }
-  }, 1400);
+window.nextQuestion = function(){
+  state.currentQIndex++;
+  if(state.currentQIndex < state.currentQuestions.length){
+    renderQuestion();
+  } else {
+    submitAnswers();
+  }
 };
 
 async function submitAnswers(){
@@ -1955,7 +1979,7 @@ function showResult(resultData, pileResults, pileChoices){
   const myData = perPlayer?.[state.playerId];
 
   const GRAVEL_TAUNTS = ['ควรแยกให้ดีกว่านี้นะ! 😏','สายตาต้องฝึกอีกเยอะเลย 👀','กองกรวดอยู่ดีๆ ก็เลือกได้! 🪨','ฝึกให้มากขึ้นนะคะ~ 😅','ครั้งหน้าลองใช้สัญชาตญาณดูบ้าง! 🎯'];
-  const MONEY_ROBBER_TAUNTS = ['โจรมือใหม่หัดปล้น 😂','โชคดีที่โจรยังหน้าใส~ 🦹','โจรเห็นคุณแล้วยังไม่กล้าเลย! 💀','วันนี้ดวงดี ไม่ใช่ฝีมือนะ! 😜','โจรเห็นหน้าแล้วหนีเลย! 🏃'];
+  const ROBBER_FLED_TAUNTS = ['โจรมือใหม่หัดปล้น เจอคุณแล้วหนีเลย 😂','โชคดีที่โจรยังหน้าใส~ 🦹','โจรเห็นหน้าคุณแล้วไม่กล้า! 💀','คืนนี้ดวงดีมาก ระวังคืนหน้าด้วย! 😜'];
   const randTaunt = (arr) => arr[Math.floor(Math.random()*arr.length)];
 
   let icon = '💰', title = 'รอบนี้ผ่านไป', sub = '';
@@ -1963,7 +1987,7 @@ function showResult(resultData, pileResults, pileChoices){
     if(myData.outcome==='money'){
       icon='💰'; title='เจอถุงเงิน!'; sub=`+${myData.moneyChange.toLocaleString()} ฿`;
     } else if(myData.outcome==='money_robber_fled'){
-      icon='💰'; title='เจอเงิน!'; sub=randTaunt(MONEY_ROBBER_TAUNTS);
+      icon='💰'; title='เจอเงิน! โจรหนีไป'; sub=randTaunt(ROBBER_FLED_TAUNTS);
     } else if(myData.outcome==='gravel_correct'){
       icon='🪨✅'; title='เจอกรวด — ตอบถูก!'; sub=randTaunt(GRAVEL_TAUNTS);
     } else if(myData.outcome==='gravel_wrong'){
