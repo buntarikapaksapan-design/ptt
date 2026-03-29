@@ -1024,6 +1024,7 @@ let state = {
   shuffledAdjs: [],
   adjIndex: 0,
   windScatterActive: false,
+  roundRobberTypes: {},
   listeners: []
 };
 
@@ -1315,7 +1316,7 @@ function showGameBoard(){
       boss:['🦹‍♂️ "ข้ามาเองเลย... เตรียมสูญเสียได้เลย!"','🦹‍♂️ "บอสมาแล้ว! ผันผิดข้อเดียวก็หมดเลย!"']
     };
     const nc2 = NIGHT_CONFIG[day];
-    const robberTypeForBanner = (room.roundRobberTypes||{})[round] || 'petty';
+    const robberTypeForBanner = (state.roundRobberTypes||{})[round] || 'petty';
     const banners = robberTauntBanners[robberTypeForBanner] || robberTauntBanners.petty;
     const tauntText = banners[Math.floor(Math.random()*banners.length)];
 
@@ -1410,6 +1411,7 @@ function startListeningToGame(){
     state.players = room.players || {};
     state.day = room.day || 1;
     state.round = room.round || 1;
+    state.roundRobberTypes = room.roundRobberTypes || {};
 
     // Update current screen overlays
     if(['select','question','result','summary','final'].includes(phase)){
@@ -2266,6 +2268,12 @@ window.resultNextRound = async function(){
       _questionResolving:false
     });
     state.round = round+1;
+    // Fetch latest room to sync roundRobberTypes before showing board
+    const snap = await get(ref(db,'rooms/'+state.roomCode));
+    if(snap.exists()){
+      const r = snap.val();
+      state.roundRobberTypes = r.roundRobberTypes || {};
+    }
     showGameBoard();
   }
 };
@@ -2415,7 +2423,7 @@ function listenForPhaseChange(targetPhase){
 window.backToTitle = function(){
   state.listeners.forEach(unsub=>{ try{unsub();}catch(e){} });
   state.listeners = [];
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, roundRobberTypes:{}, listeners:[] };
   showScreen('screen-title');
 };
 
