@@ -1027,6 +1027,7 @@ let state = {
   windScatterActive: false,
   roundRobberTypes: {},
   _questionStarted: false,
+  _hostRevealStarted: false,
   listeners: []
 };
 
@@ -1428,6 +1429,7 @@ function startListeningToGame(){
     if(phase === 'select'){
       _resolvingQuestions = false;
       state._questionStarted = false;
+      state._hostRevealStarted = false;
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
       }
@@ -1455,7 +1457,6 @@ function startListeningToGame(){
       const myResult = pr[pid] || {};
       const qData = room.questionData || room.emergencyData?.questionData;
       const robberType = room.emergencyData?.robberType || 'petty';
-      const screenActive = document.getElementById('screen-question').classList.contains('active');
 
       // Only start question once — guard with state flag
       if(!state._questionStarted){
@@ -1463,17 +1464,19 @@ function startListeningToGame(){
         if(myResult.needsQuestion === true){
           startQuestion(qData, robberType);
         } else {
+          // เจอเงิน — แสดง waiting แล้ว Host เริ่ม poll รอทุกคนตอบ
           showWaitingForQuestion();
+          if(state.isHost && !state._hostRevealStarted){
+            state._hostRevealStarted = true;
+            waitAndReveal();
+          }
         }
-      }
-
-      // Host drives reveal when everyone is done
-      if(state.isHost && !_resolvingQuestions && myResult.needsQuestion !== true){
-        waitAndReveal();
       }
     }
 
     if(phase === 'reveal'){
+      state._questionStarted = false;
+      state._hostRevealStarted = false;
       showReveal(room.revealData);
     }
 
@@ -1482,6 +1485,8 @@ function startListeningToGame(){
     }
 
     if(phase === 'result'){
+      state._questionStarted = false;
+      state._hostRevealStarted = false;
       showResult(room.resultData, room.pileResults, room.pileChoices);
     }
 
@@ -2092,7 +2097,8 @@ async function submitAnswers(){
   `;
   showScreen('screen-question');
 
-  if(state.isHost){
+  if(state.isHost && !state._hostRevealStarted){
+    state._hostRevealStarted = true;
     waitAndReveal();
   }
 }
@@ -2591,7 +2597,7 @@ function listenForPhaseChange(targetPhase){
 window.backToTitle = function(){
   state.listeners.forEach(unsub=>{ try{unsub();}catch(e){} });
   state.listeners = [];
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, listeners:[] };
   showScreen('screen-title');
 };
 
