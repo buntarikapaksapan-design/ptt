@@ -1026,6 +1026,7 @@ let state = {
   adjIndex: 0,
   windScatterActive: false,
   roundRobberTypes: {},
+  _questionStarted: false,
   listeners: []
 };
 
@@ -1423,6 +1424,7 @@ function startListeningToGame(){
 
     if(phase === 'select'){
       _resolvingQuestions = false;
+      state._questionStarted = false;
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
       }
@@ -1448,22 +1450,23 @@ function startListeningToGame(){
       const pid = state.playerId;
       const pr = room.pileResults || {};
       const myResult = pr[pid] || {};
-      const screenActive = document.getElementById('screen-question').classList.contains('active');
       const qData = room.questionData || room.emergencyData?.questionData;
       const robberType = room.emergencyData?.robberType || 'petty';
+      const screenActive = document.getElementById('screen-question').classList.contains('active');
 
-      if(!screenActive){
+      // Only start question once — guard with state flag
+      if(!state._questionStarted){
+        state._questionStarted = true;
         if(myResult.needsQuestion === true){
           startQuestion(qData, robberType);
         } else {
-          // Hit money — show waiting
           showWaitingForQuestion();
         }
       }
 
-      // Host drives resolution if they don't need to answer (hit money)
+      // Host drives reveal when everyone is done
       if(state.isHost && !_resolvingQuestions && myResult.needsQuestion !== true){
-        waitAndResolveQuestions();
+        waitAndReveal();
       }
     }
 
@@ -1662,19 +1665,19 @@ async function calcNormalRoundResult(room, pileResults, pileType){
 // ===== EMERGENCY =====
 const ROBBER_TAUNTS = {
   petty: [
-    { jp:'泥棒が来たぞ！😤', th:'โจรมาแล้ว!! แค่คนเดียว แต่อย่าชะล่าใจนะ!' },
-    { jp:'気をつけろ！🦹', th:'ระวังให้ดี! โจรซ่อนอยู่ในกองหนึ่ง!' },
+    { jp:'泥棒が来たぞ！😤', th:'โจรมาแล้ว!! แค่คนเดียว แต่อย่าชะล่าใจแล้วกัน!' },
+    { jp:'気をつけろ！🦹', th:'ระวังให้ดี! โจรพร้อมขโมยได้ทุกเมื่อ!' },
     { jp:'逃げるな！戦え！😏', th:'อย่าหนี สู้เลย! ผันให้ถูกแล้วจะรอด!' },
   ],
   gang: [
-    { jp:'盗賊団だ！やばい！😱', th:'กลุ่มโจรมาแล้วว!! หลายคนหลายมือ ระวังให้ดีมากๆ!' },
+    { jp:'盗賊団だ！やばい！😱', th:'กลุ่มโจรมาแล้วว!! หลายคนหลายมือ ระวังให้ดีๆ!' },
     { jp:'囲まれた！どうする！🦹🦹', th:'ถูกล้อมแล้ว! คิดให้ดีก่อนเลือกกองนะ! 4 ข้อรอคุณอยู่!' },
-    { jp:'多すぎる！😰', th:'เยอะเกินไป! มาเป็นทีมเลย ผันให้ครบทุกข้อหรือโดนรุมแน่นอน!' },
+    { jp:'多すぎる！😰', th:'เยอะเกินไป! มาเป็นทีมเลย ผันให้ครบทุกข้อไม่งั้นโดนรุมแน่นอน!' },
   ],
   boss: [
     { jp:'ボスが来た！死ぬかも！💀', th:'หัวหน้าโจรมาเองเลย!! ถ้าผิดเสียเงิน 850,000฿ + หัวใจอีก 1 ดวง!!' },
-    { jp:'最強の敵だ！逃げろ！😈', th:'ศัตรูแข็งแกร่งที่สุด! ผันให้ถูกทุกข้อไม่งั้นเจ็บมากกกก!' },
-    { jp:'覚悟しろ！！⚠️', th:'เตรียมใจไว้ได้เลย!! บอสมาเองนะ ไม่ใช่ลูกน้องแล้ว!!' },
+    { jp:'最強の敵だ！逃げろ！😈', th:'ศัตรูแข็งแกร่งที่สุด! ผันให้ถูกทุกข้อไม่งั้นได้เข้า icu แน่!' },
+    { jp:'覚悟しろ！！⚠️', th:'เตรียมใจไว้ได้เลย!! ระดับหัวหน้ามาเองนะ ไม่ใช่ลูกน้องแล้ว!!' },
   ]
 };
 
@@ -1697,7 +1700,6 @@ function showEmergency(data){
         <div style="font-size:0.9rem;color:#ffbbbb;font-weight:600">${tauntObj.th}</div>
       </div>
 
-      <div class="emergency-desc" style="margin-bottom:8px">โจรซ่อนอยู่ในกองใดกองหนึ่ง — ทุกคนต้องผันคำคุณศัพท์!</div>
       <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:20px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px">
         ${data.robberType==='boss'
           ?'💀 เจอกองโจร + ผิด → เสีย 850,000฿ + ❤️ -1<br>🗡️ เจอกองโจร + ถูก → รอด + โบนัส + ⚔️ อาวุธ'
@@ -1760,6 +1762,8 @@ const GRAVEL_TAUNTS_PRE = [
 function startQuestion(questionData, robberType){
   if(!questionData || questionData.length === 0) return;
 
+  // Hard reset ทุกครั้ง ป้องกันข้ามข้อ
+  clearInterval(qTimer);
   state.currentQuestions = questionData;
   state.currentQIndex = 0;
   state.qAnswers = [];
@@ -1767,7 +1771,6 @@ function startQuestion(questionData, robberType){
 
   const isRobber = robberType && robberType !== 'normal';
   if(!isRobber){
-    // ข้อ 2: gravel round → popup ยั่วยุก่อน
     const taunt = GRAVEL_TAUNTS_PRE[Math.floor(Math.random()*GRAVEL_TAUNTS_PRE.length)];
     document.getElementById('screen-question').innerHTML = `
       <div class="panel question-panel slide-up" style="text-align:center;padding:32px 24px">
@@ -1907,7 +1910,7 @@ window.answerQ = function(answer){
   if(state.qAnswers.length < total){
     // Still have more questions — go next after brief pause
     setTimeout(()=>{
-      state.currentQIndex++;
+      state.currentQIndex = state.qAnswers.length; // sync index with answers
       renderQuestion();
     }, 800);
   } else {
@@ -2493,7 +2496,7 @@ function listenForPhaseChange(targetPhase){
 window.backToTitle = function(){
   state.listeners.forEach(unsub=>{ try{unsub();}catch(e){} });
   state.listeners = [];
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, roundRobberTypes:{}, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, listeners:[] };
   showScreen('screen-title');
 };
 
