@@ -607,8 +607,8 @@
 
   <div class="panel title-panel slide-up">
     <div class="tab-row">
-      <button class="btn btn-gold" onclick="showTab('tab-create')">🏠 สร้างห้อง</button>
-      <button class="btn btn-ghost" onclick="showTab('tab-join')">🚪 เข้าห้อง</button>
+      <button class="btn btn-gold" onclick="showTab('tab-create', event)">🏠 สร้างห้อง</button>
+      <button class="btn btn-ghost" onclick="showTab('tab-join', event)">🚪 เข้าห้อง</button>
     </div>
 
     <div id="tab-create" class="tab-content active">
@@ -852,7 +852,7 @@
 <!-- ==================== FIREBASE + GAME LOGIC ==================== -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getDatabase, ref, set, get, onValue, update, remove, push } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { getDatabase, ref, set, get, onValue, update, remove, push, runTransaction } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 // ===== FIREBASE CONFIG =====
 const firebaseConfig = {
@@ -933,23 +933,35 @@ const ADJECTIVES = [
 // Wrong answer distractors generator
 function genDistractors(adj, correct){
   const distractors = [];
+
   if(adj.type === 'i'){
-    // Common mistakes for い-adj
-    distractors.push(adj.word.replace('い','') + 'じゃない');  // na-adj style
-    distractors.push(adj.word.replace('い','くて'));         // te-form
-    distractors.push(adj.word + 'ない');                    // just add ない
-    distractors.push(adj.word.replace('い','') + 'いない'); // random wrong
+    // ใช้ negPresent เป็นฐานทั้งหมด — ป้องกัน irregular เช่น いい/よい ได้ผล /よじゃない
+    // correct = e.g. "よくない", "大きくない"
+    const base = correct.replace('くない',''); // "よ", "大きく" → no, just strip suffix
+    // ใช้ reading แทนเพื่อสร้าง wrong forms
+    const r = adj.reading; // e.g. "いい" or "おおきい"
+    const rBase = r.endsWith('い') ? r.slice(0,-1) : r; // "おおき"
+
+    distractors.push(rBase + 'じゃない');    // na-adj style (ผิด)
+    distractors.push(rBase + 'くて');        // te-form (ผิดบริบท)
+    distractors.push(r + 'ない');            // ลืมเปลี่ยน い→く
+    distractors.push(correct + 'です');      // เติม polite ผิด
   } else {
-    // Common mistakes for な-adj
     const base = adj.word;
-    distractors.push(base + 'くない');       // い-adj style
-    distractors.push(base + 'ではない');     // formal negative
-    distractors.push(base + 'ない');         // no じゃ
+    distractors.push(base + 'くない');       // สับสนกับ い-adj
+    distractors.push(base + 'ではない');     // formal ยังไม่ได้เรียน
+    distractors.push(base + 'ない');         // ลืมใส่ じゃ
     distractors.push(base + 'じゃなかった'); // past tense
   }
-  // Filter distinct from correct
-  const pool = distractors.filter(d => d !== correct);
-  // Shuffle and pick 3
+
+  // Filter ไม่ให้ซ้ำกับ correct และไม่ซ้ำกันเอง
+  const seen = new Set([correct]);
+  const pool = distractors.filter(d => {
+    if(seen.has(d)) return false;
+    seen.add(d);
+    return true;
+  });
+
   for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
   return pool.slice(0,3);
 }
@@ -1022,12 +1034,11 @@ let state = {
   currentQIndex: 0,
   qAnswers: [],
   dayQALog: [],
-  shuffledAdjs: [],
-  adjIndex: 0,
   windScatterActive: false,
   roundRobberTypes: {},
   _questionStarted: false,
   _hostRevealStarted: false,
+  countInterval: null,
   listeners: []
 };
 
@@ -1078,11 +1089,11 @@ function rollRobberType(day){
 }
 
 // ===== TABS =====
-window.showTab = function(tabId){
+window.showTab = function(tabId, e){
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.tab-row .btn').forEach(b=>b.classList.remove('btn-gold'));
   document.getElementById(tabId).classList.add('active');
-  event.target.classList.add('btn-gold');
+  if(e && e.target) e.target.classList.add('btn-gold');
 };
 
 // ===== CREATE ROOM =====
@@ -1220,8 +1231,14 @@ function enterLobby(code){
       updateChoiceIndicators(choices);
       const activePlayers = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
       const allChose = activePlayers.every(([pid])=>choices[pid]!==undefined);
-      if(allChose && state.isHost && !room._resolving){
-        update(ref(db,'rooms/'+code),{_resolving:true}).then(()=>resolveRound(room));
+      if(allChose && state.isHost){
+        const resolvingRef = ref(db,'rooms/'+code+'/_resolving');
+        runTransaction(resolvingRef, current => {
+          if(current === true) return; // abort — someone else already resolving
+          return true;
+        }).then(result => {
+          if(result.committed) resolveRound(room);
+        });
       }
     }
 
@@ -1351,9 +1368,8 @@ window.nightIntroDone = async function(){
   state.day = parseInt(document.getElementById('night-day-badge').textContent.replace('วันที่ ',''));
   state.round = 1;
 
-  // Shuffle adjectives for this session
-  state.shuffledAdjs = shuffleArray([...ADJECTIVES]);
-  state.adjIndex = 0;
+  // สร้าง adjOrder shuffle ใหม่สำหรับ Day นี้ และ reset index เป็น 0
+  const adjOrder = shuffleArray([...Array(ADJECTIVES.length).keys()]);
   state.dayQALog = [];
 
   // Determine robber round types for whole day upfront
@@ -1370,13 +1386,17 @@ window.nightIntroDone = async function(){
     roundRobberTypes: roundRobberTypes,
     pileChoices: {},
     pileResults: null,
-    windScatter: false
+    windScatter: false,
+    adjOrder: adjOrder,
+    adjIndex: 0
   });
   // Single listener จะรับ phase:'select' แล้ว showGameBoard เองอัตโนมัติ
 };
 
 // ===== GAME BOARD =====
 function showGameBoard(){
+  // Clear countdown interval จาก round ก่อน ป้องกัน unlock กองผิด round
+  if(state.countInterval){ clearInterval(state.countInterval); state.countInterval = null; }
   const day = state.day;
   const round = state.round;
   const nc = NIGHT_CONFIG[day];
@@ -1433,6 +1453,7 @@ function showGameBoard(){
         countEl.textContent = countdown;
       } else {
         clearInterval(countInterval);
+        state.countInterval = null;
         warningEl.innerHTML = `⚠️ เลือกกองได้แล้ว! ทุกกองมีกรวด — ผันให้ถูกก่อนโดนจับ!`;
         warningEl.style.background = 'rgba(232,69,69,0.08)';
         if(state.myPileChoice === null){
@@ -1440,6 +1461,7 @@ function showGameBoard(){
         }
       }
     }, 1000);
+    state.countInterval = countInterval;
   } else {
     // ข้อ 1: ลบ banner ปกติออก
     warningEl.style.display = 'none';
@@ -1584,24 +1606,34 @@ async function resolveRound(room){
     return;
   }
 
-  // Generate questions for ALL rounds (gravel always asks)
-  const adjs = shuffleArray([...ADJECTIVES]).slice(0,1);
-  const normalQuestionData = adjs.map(a=>{
+  // Generate questions — ใช้ adjIndex เพื่อไม่ซ้ำข้ามรอบ
+  const adjIdx = room.adjIndex || 0;
+  const adjOrder = room.adjOrder || shuffleArray([...Array(ADJECTIVES.length).keys()]);
+
+  function pickAdjs(count){
+    const picked = [];
+    let idx = adjIdx;
+    for(let i=0;i<count;i++){
+      picked.push(ADJECTIVES[adjOrder[idx % adjOrder.length]]);
+      idx++;
+    }
+    return { adjs: picked, nextIdx: idx };
+  }
+
+  let adjResult = pickAdjs(isRobberRound ? (ROBBER_TYPE[robberType]?.questionCount || 1) : 1);
+  const pickedAdjs = adjResult.adjs;
+  const nextAdjIdx = adjResult.nextIdx;
+
+  const makeQData = (adjs) => adjs.map(a=>{
     const q = generateQuestion(a);
     return { adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type}, correct:q.correct, choices:q.choices };
   });
 
-  // Generate questions for robber round
-  let questionData = normalQuestionData; // default 1 question for normal gravel
-  if(isRobberRound){
-    const rt = ROBBER_TYPE[robberType];
-    const qCount = rt.questionCount;
-    const radjs = shuffleArray([...ADJECTIVES]).slice(0,qCount);
-    questionData = radjs.map(a=>{
-      const q = generateQuestion(a);
-      return { adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type}, correct:q.correct, choices:q.choices };
-    });
-  }
+  const normalQuestionData = makeQData([pickedAdjs[0]]);
+  const questionData = isRobberRound ? makeQData(pickedAdjs) : normalQuestionData;
+
+  // อัพเดต index กลับไป Firebase
+  await update(ref(db,'rooms/'+state.roomCode),{ adjIndex: nextAdjIdx, adjOrder });
 
   // Per-player pile result
   const pileResults = {};
@@ -2120,7 +2152,8 @@ async function waitAndReveal(){
     // Also handle case where Host has money (not in questionPlayers) — still need to wait
     const allDone = questionPlayers.every(([pid])=>answers[pid]?.done);
     if(allDone){
-      clearInterval(pollInterval); _resolvingQuestions=false;
+      clearInterval(pollInterval);
+      // ยังไม่ reset _resolvingQuestions — ยังทำงานอยู่ใน setTimeout
       const allAnswers = {};
       Object.entries(answers).forEach(([pid,a])=>{ allAnswers[pid]={allCorrect:a.allCorrect}; });
       await update(ref(db,'rooms/'+state.roomCode),{
@@ -2129,9 +2162,9 @@ async function waitAndReveal(){
         _resolving: false
       });
       setTimeout(async()=>{
-        // Re-fetch latest room before resolving
         const freshSnap = await get(ref(db,'rooms/'+state.roomCode));
         if(freshSnap.exists()) await resolveRound_withAnswers(freshSnap.val());
+        _resolvingQuestions = false; // reset หลัง resolve เสร็จจริงๆ
       }, 4000);
     }
   }, 1000);
@@ -2576,8 +2609,12 @@ function showFinal(data){
 // listenForPhaseChange ถูกรวมเข้า enterLobby listener เดียวแล้ว
 
 window.backToTitle = function(){
+  clearInterval(qTimer);
+  qTimer = null;
+  _resolvingQuestions = false;
+  if(state.countInterval){ clearInterval(state.countInterval); }
   unsubAll();
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], shuffledAdjs:[], adjIndex:0, windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, countInterval:null, listeners:[] };
   showScreen('screen-title');
 };
 
