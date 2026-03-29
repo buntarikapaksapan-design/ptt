@@ -436,17 +436,19 @@
     background: rgba(255,255,255,0.04);
     border: 2px solid var(--border);
     border-radius: 12px;
-    padding: 16px 10px;
+    padding: 14px 12px;
     font-family: 'Noto Sans JP', inherit;
-    font-size: 1.4rem;
     color: var(--text-main);
     cursor: pointer;
     transition: all 0.2s;
     font-weight: 700;
-    min-height: 72px;
+    min-height: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-wrap: wrap;
+    gap: 2px;
+    text-align: center;
   }
   .choice-btn:hover:not(:disabled) { border-color: var(--accent-gold); background: rgba(240,192,64,0.08); }
   .choice-btn.selected { border-color: var(--accent-blue); background: rgba(74,158,255,0.1); }
@@ -1222,6 +1224,38 @@ function enterLobby(code){
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
+      const nc = NIGHT_CONFIG[room.day||1];
+
+      // รอบโจร: emergency ก่อนเลือกกอง — push ทันทีที่เข้า select
+      if(state.isHost && nc.robberRounds.includes(room.round) && !room.emergencyData && !room._resolving){
+        const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
+        const pileCount2 = nc.piles;
+        const robberPile2 = Math.ceil(Math.random()*pileCount2);
+        const moneyOddsMap = { petty:0.5, gang:0.25, boss:0.0 };
+        const moneyOdds = moneyOddsMap[robberType] ?? 0.0;
+        const pileType2 = {};
+        for(let i=1;i<=pileCount2;i++) pileType2[i]=(moneyOdds>0&&Math.random()<moneyOdds)?'money':'gravel';
+        pileType2[robberPile2]='gravel';
+        const qCount = ROBBER_TYPE[robberType]?.questionCount||1;
+        const adjIdx2 = room.adjIndex||0;
+        const adjOrder2 = room.adjOrder||shuffleArray([...Array(ADJECTIVES.length).keys()]);
+        const qAdjs = [];
+        for(let i=0;i<qCount;i++) qAdjs.push(ADJECTIVES[adjOrder2[(adjIdx2+i)%adjOrder2.length]]);
+        const questionData2 = qAdjs.map(a=>{
+          const q=generateQuestion(a);
+          return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type},correct:q.correct,choices:q.choices};
+        });
+        await update(ref(db,'rooms/'+code),{
+          phase:'emergency',
+          emergencyData:{robberType,robberPile:robberPile2,pileType:pileType2,questionData:questionData2},
+          pileChoices:{},
+          adjIndex: adjIdx2+qCount,
+          adjOrder: adjOrder2,
+          _resolving:false
+        });
+        return;
+      }
+
       if(document.getElementById('screen-game').classList.contains('active')){
         updatePlayersStatus();
         const choices = room.pileChoices || {};
@@ -1524,149 +1558,61 @@ async function resolveRound(room){
   const activePlayers = Object.entries(room.players).filter(([pid,p])=>!p.eliminated);
   const pileCount = nc.piles;
 
-  // Day 3 wind scatter
-  let windScatter = false;
-  if(day === 3 && Math.random() < 0.15){
-    windScatter = true;
-  }
-
-  // รอบโจร: กองไหนซ่อนโจร และ robberType ต้องรู้ก่อน assign pileType
-  const robberType = isRobberRound ? (room.roundRobberTypes?.[round] || 'petty') : null;
-  let robberPile = null;
-  if(isRobberRound){
-    robberPile = Math.ceil(Math.random()*pileCount);
-  }
-
-  // ===== PILE TYPE ASSIGNMENT =====
-  // ตาม spec: petty=50%เงิน, gang=25%เงิน, boss=0%เงิน(ทุกกองกรวด)
-  const pileType = {};
-  if(isRobberRound){
-    const moneyOddsMap = { petty: 0.5, gang: 0.25, boss: 0.0 };
-    const moneyOdds = moneyOddsMap[robberType] ?? 0.0;
-    for(let i=1;i<=pileCount;i++){
-      pileType[i] = (moneyOdds > 0 && Math.random() < moneyOdds) ? 'money' : 'gravel';
-    }
-    // robberPile ต้องเป็นกรวดเสมอ (โจรซ่อนอยู่ในกรวด)
-    if(robberPile) pileType[robberPile] = 'gravel';
-  } else {
-    // รอบปกติ: สุ่มเงิน/กรวด 50/50
-    for(let i=1;i<=pileCount;i++){
-      pileType[i] = Math.random() < 0.5 ? 'money' : 'gravel';
-    }
-    if(pileCount > 1){
-      const hasMoney = Object.values(pileType).includes('money');
-      const hasGravel = Object.values(pileType).includes('gravel');
-      if(!hasMoney){ pileType[1]='money'; }
-      if(!hasGravel){ pileType[pileCount]='gravel'; }
-    }
-  }
-
-  // ถ้ากลับมาจาก emergency แล้ว (มี emergencyData) ใช้ข้อมูลเดิมทั้งหมด
-  if(isRobberRound && room.emergencyData && room.emergencyData.pileType){
-    const existingED = room.emergencyData;
-    const existingPileType = existingED.pileType;
-    const existingRobberPile = existingED.robberPile;
+  // รอบโจร: ใช้ข้อมูลจาก emergencyData ที่เตรียมไว้แล้ว
+  if(isRobberRound && room.emergencyData){
+    const ed = room.emergencyData;
     const newPileResults = {};
     activePlayers.forEach(([pid,p])=>{
       const chosen = pileChoices[pid];
-      const type = existingPileType[chosen] || 'gravel';
-      const hitRobber = chosen === existingRobberPile;
+      const type = ed.pileType[chosen] || 'gravel';
+      const hitRobber = chosen === ed.robberPile;
       const needsQuestion = (type === 'gravel') || hitRobber;
-      newPileResults[pid] = { pile:chosen, type, hitRobber: hitRobber || false, needsQuestion };
+      newPileResults[pid] = { pile:chosen, type, hitRobber: hitRobber||false, needsQuestion };
     });
     await update(ref(db,'rooms/'+state.roomCode),{
       phase: 'question',
       pileResults: newPileResults,
-      questionData: existingED.questionData,
+      questionData: ed.questionData,
       _resolving: false
     });
     return;
   }
-
-  // Generate questions — ใช้ adjIndex เพื่อไม่ซ้ำข้ามรอบ
-  const adjIdx = room.adjIndex || 0;
-  const adjOrder = room.adjOrder || shuffleArray([...Array(ADJECTIVES.length).keys()]);
-
-  function pickAdjs(count){
-    const picked = [];
-    let idx = adjIdx;
-    for(let i=0;i<count;i++){
-      picked.push(ADJECTIVES[adjOrder[idx % adjOrder.length]]);
-      idx++;
-    }
-    return { adjs: picked, nextIdx: idx };
+  // รอบปกติ: สุ่มเงิน/กรวด 50/50
+  const pileType = {};
+  for(let i=1;i<=pileCount;i++){
+    pileType[i] = Math.random() < 0.5 ? 'money' : 'gravel';
+  }
+  if(pileCount > 1){
+    const hasMoney = Object.values(pileType).includes('money');
+    const hasGravel = Object.values(pileType).includes('gravel');
+    if(!hasMoney){ pileType[1]='money'; }
+    if(!hasGravel){ pileType[pileCount]='gravel'; }
   }
 
-  let adjResult = pickAdjs(isRobberRound ? (ROBBER_TYPE[robberType]?.questionCount || 1) : 1);
-  const pickedAdjs = adjResult.adjs;
-  const nextAdjIdx = adjResult.nextIdx;
+  // Generate questions สำหรับรอบปกติ
+  const adjIdx = room.adjIndex || 0;
+  const adjOrder = room.adjOrder || shuffleArray([...Array(ADJECTIVES.length).keys()]);
+  const pickedAdj = ADJECTIVES[adjOrder[adjIdx % adjOrder.length]];
+  const q = generateQuestion(pickedAdj);
+  const normalQuestionData = [{ adj:{word:pickedAdj.word,reading:pickedAdj.reading,meaning:pickedAdj.meaning,type:pickedAdj.type}, correct:q.correct, choices:q.choices }];
+  await update(ref(db,'rooms/'+state.roomCode),{ adjIndex: adjIdx+1, adjOrder });
 
-  const makeQData = (adjs) => adjs.map(a=>{
-    const q = generateQuestion(a);
-    return { adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type}, correct:q.correct, choices:q.choices };
-  });
-
-  const normalQuestionData = makeQData([pickedAdjs[0]]);
-  const questionData = isRobberRound ? makeQData(pickedAdjs) : normalQuestionData;
-
-  // อัพเดต index กลับไป Firebase
-  await update(ref(db,'rooms/'+state.roomCode),{ adjIndex: nextAdjIdx, adjOrder });
-
-  // Per-player pile result
+  // Per-player pile result (รอบปกติเท่านั้น)
   const pileResults = {};
   activePlayers.forEach(([pid,p])=>{
     const chosen = pileChoices[pid];
     const type = pileType[chosen] || 'gravel';
-    const hitRobber = isRobberRound && chosen === robberPile;
-    // ต้องผันถ้า: เจอกรวด (ทั้งรอบปกติและรอบโจร) หรือเจอกองโจร
-    const needsQuestion = (type === 'gravel') || hitRobber;
-    pileResults[pid] = { pile:chosen, type, hitRobber: hitRobber || false, needsQuestion };
+    const needsQuestion = (type === 'gravel');
+    pileResults[pid] = { pile:chosen, type, hitRobber:false, needsQuestion };
   });
 
-  // Wind scatter for day 3: re-randomize choice
-  if(windScatter && isRobberRound){
-    // Players hitting non-robber piles may scatter
-    activePlayers.forEach(([pid,p])=>{
-      if(!pileResults[pid].hitRobber){
-        const newPile = Math.ceil(Math.random()*pileCount);
-        pileResults[pid].scattered = true;
-        pileResults[pid].pile = newPile;
-        pileResults[pid].type = pileType[newPile] || 'gravel';
-        pileResults[pid].hitRobber = isRobberRound && newPile === robberPile;
-      }
-    });
-  }
-
-  // If robber round: show emergency first
-  if(isRobberRound){
-    await update(ref(db,'rooms/'+state.roomCode),{
-      phase: 'emergency',
-      emergencyData: { robberType, robberPile, pileType, questionData, pileResults },
-      pileResults,
-      questionData,
-      _resolving: false
-    });
-    // Host presses button manually to continue (hostContinueFromEmergency)
-  } else {
-    // Normal round: check if anyone hit gravel → go to question
-    const anyGravel = Object.values(pileResults).some(pr=>pr.type==='gravel');
-    if(anyGravel){
-      await update(ref(db,'rooms/'+state.roomCode),{
-        phase: 'question',
-        pileResults,
-        questionData: normalQuestionData,
-        _resolving: false
-      });
-    } else {
-      // Everyone got money — resolve directly (no questions needed)
-      await update(ref(db,'rooms/'+state.roomCode),{
-        phase: 'question',  // go through question phase so listener triggers resolve
-        pileResults,
-        questionData: [],
-        _resolving: false
-      });
-    }
-  }
+  // push question phase
+  await update(ref(db,'rooms/'+state.roomCode),{
+    phase: 'question',
+    pileResults,
+    questionData: normalQuestionData,
+    _resolving: false
+  });
 }
 
 async function calcNormalRoundResult(room, pileResults, pileType){
@@ -1860,18 +1806,18 @@ function renderQuestion(){
     const cReading = choiceReading(c, qdata.adj);
     return `
       <button class="choice-btn" onclick="answerQ('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-        <ruby style="font-family:'Noto Sans JP',sans-serif;font-size:1.4rem;font-weight:700;line-height:2">
-          ${c}<rt style="font-size:0.8rem;color:var(--accent-gold);font-weight:600;letter-spacing:0">${cReading}</rt>
-        </ruby>
+        <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${c}</span>
+        <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.8rem;color:var(--accent-gold);opacity:0.8;margin-left:4px">（${cReading}）</span>
       </button>
     `;
   }).join('');
 
   // Furigana: show reading above the word — ชิดกัน อ่านง่าย
   const furiganaHTML = `
-    <ruby style="font-size:3.5rem;font-weight:900;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif;line-height:1.8;display:inline-block">
-      ${qdata.adj.word}<rt style="font-size:1rem;color:var(--accent-gold);font-weight:700;letter-spacing:0">${qdata.adj.reading}</rt>
-    </ruby>`;
+    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:0">
+      <span style="font-size:1.1rem;color:var(--accent-gold);font-weight:700;font-family:'Noto Sans JP',sans-serif;letter-spacing:0.15em">${qdata.adj.reading}</span>
+      <span style="font-size:3.5rem;font-weight:900;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif;line-height:1">${qdata.adj.word}</span>
+    </div>`;
 
   const screen = document.getElementById('screen-question');
   screen.innerHTML = `
@@ -1952,7 +1898,8 @@ window.answerQ = function(answer){
       }
     })();
     return `<button class="choice-btn${isChosen?' selected':''}" disabled style="${isChosen?'border-color:var(--accent-blue);background:rgba(74,158,255,0.12)':''}">
-      <ruby style="font-family:'Noto Sans JP',sans-serif;font-size:1.4rem;font-weight:700;line-height:2">${c}<rt style="font-size:0.8rem;color:var(--accent-gold);font-weight:600;letter-spacing:0">${cReading}</rt></ruby>
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${c}</span>
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.8rem;color:var(--accent-gold);opacity:0.8;margin-left:4px">（${cReading}）</span>
     </button>`;
   }).join('');
 
