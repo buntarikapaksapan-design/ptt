@@ -1220,6 +1220,9 @@ window.proceedFromHowToPlay = async function(){
 
 // ===== NIGHT INTRO =====
 function showNightIntro(day){
+  // Reset warning banner เพื่อไม่ให้ข้อความเก่าค้าง
+  const oldBanner = document.getElementById('robber-warning-banner');
+  if(oldBanner) oldBanner.remove();
   const nc = NIGHT_CONFIG[day];
   document.getElementById('night-day-badge').textContent = 'วันที่ '+day;
   document.getElementById('night-icon').textContent = nc.emoji;
@@ -2104,18 +2107,19 @@ async function waitAndReveal(){
     const room = snap.val();
     const pileResults = room.pileResults || {};
     const answers = room.answers || {};
-
     const questionPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.needsQuestion===true);
+
     if(questionPlayers.length === 0){
       clearInterval(pollInterval); _resolvingQuestions=false;
-      // No one needed to answer — go straight to resolve
+      // No question players at all — resolve immediately without reveal
       await resolveRound_withAnswers(room);
       return;
     }
+
+    // Also handle case where Host has money (not in questionPlayers) — still need to wait
     const allDone = questionPlayers.every(([pid])=>answers[pid]?.done);
     if(allDone){
       clearInterval(pollInterval); _resolvingQuestions=false;
-      // Push reveal phase ให้ทุกคนเห็นพร้อมกัน
       const allAnswers = {};
       Object.entries(answers).forEach(([pid,a])=>{ allAnswers[pid]={allCorrect:a.allCorrect}; });
       await update(ref(db,'rooms/'+state.roomCode),{
@@ -2123,9 +2127,10 @@ async function waitAndReveal(){
         revealData:{ allAnswers },
         _resolving: false
       });
-      // รอ 4 วินาทีให้ผู้เล่นอ่านหน้า reveal ก่อน แล้วค่อย resolve ผล
       setTimeout(async()=>{
-        await resolveRound_withAnswers(room);
+        // Re-fetch latest room before resolving
+        const freshSnap = await get(ref(db,'rooms/'+state.roomCode));
+        if(freshSnap.exists()) await resolveRound_withAnswers(freshSnap.val());
       }, 4000);
     }
   }, 1000);
@@ -2161,7 +2166,7 @@ async function resolveRobberRound(room){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
     } else if(pr.hitRobber){
-      // Hit robber pile — must answer
+      // เจอกองโจร — ต้องผัน
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
       if(correct){
@@ -2181,8 +2186,14 @@ async function resolveRobberRound(room){
           outcome = 'robber_lost';
         }
       }
-    } else if(pr.needsQuestion && !pr.hitRobber){
-      // Normal gravel (non-robber pile in any round) — answer question, no money either way
+    } else if(isRobberRound && pr.needsQuestion){
+      // รอบโจร ไม่เจอกองโจร — ผันแต่ไม่มีผลเงิน/หัวใจ
+      const ans = answers[pid];
+      const correct = ans?.allCorrect || false;
+      outcome = correct ? 'gravel_correct' : 'gravel_wrong';
+      moneyChange = 0;
+    } else if(!isRobberRound && pr.needsQuestion){
+      // รอบปกติ เจอกรวด
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
       outcome = correct ? 'gravel_correct' : 'gravel_wrong';
@@ -2329,9 +2340,9 @@ function showResult(resultData, pileResults, pileChoices){
     if(o === 'robber_lost'){
       const medical = myData.robberType==='boss'?50000:myData.robberType==='gang'?30000:3000;
       const stolen = myData.lossOnFail - medical;
-      rows += `<div class="result-row"><span class="label">💸 เงินถูกขโมย (${myData.rt_name||'โจร'})</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
-      rows += `<div class="result-row"><span class="label">🏥 ค่ารักษาบาดเจ็บ</span><span class="value loss">-${medical.toLocaleString()} ฿</span></div>`;
-      rows += `<div class="result-row"><span class="label">💔 หัวใจที่เสีย</span><span class="value loss">${myData.heartChange}</span></div>`;
+      rows += `<div class="result-row" style="background:rgba(232,69,69,0.1);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💸 เงินถูกขโมย (${myData.rt_name})</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
+      rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">🏥 ค่ารักษาบาดเจ็บ</span><span class="value loss">-${medical.toLocaleString()} ฿</span></div>`;
+      rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💔 หัวใจที่เสีย</span><span class="value loss" style="font-size:1.1rem">${myData.heartChange} ดวง</span></div>`;
     } else if(o === 'robber_won'){
       rows += `<div class="result-row"><span class="label">🛡️ รักษาเงินไว้ได้</span><span class="value gain">ปลอดภัย!</span></div>`;
       if(myData.moneyChange > 0){
