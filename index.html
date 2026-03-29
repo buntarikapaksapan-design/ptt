@@ -1810,11 +1810,41 @@ function renderQuestion(){
     return `<div class="${cls}"></div>`;
   }).join('');
 
-  const choicesHTML = qdata.choices.map(c=>`
-    <button class="choice-btn" onclick="answerQ('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-      <span style="font-family:'Noto Sans JP',sans-serif">${c}</span>
-    </button>
-  `).join('');
+  // สร้าง furigana สำหรับตัวเลือก — ใช้ reading ของ adj เป็นฐาน แล้วแทนที่ส่วนท้าย
+  function choiceReading(choice, adj){
+    // ถ้าเป็น な-adj: reading + conjugation suffix
+    // ถ้าเป็น い-adj: reading เปลี่ยน い→ suffix
+    const r = adj.reading || '';
+    if(adj.type === 'na'){
+      // base reading ไม่เปลี่ยน + suffix
+      if(choice.endsWith('じゃない')) return r + 'じゃない';
+      if(choice.endsWith('ではない')) return r + 'ではない';
+      if(choice.endsWith('くない')) return r + 'くない';
+      if(choice.endsWith('ない')) return r + 'ない';
+      if(choice.endsWith('じゃなかった')) return r + 'じゃなかった';
+      return r;
+    } else {
+      // い-adj: ตัด い ออก แล้วเติม suffix
+      const base = r.endsWith('い') ? r.slice(0,-1) : r;
+      if(choice.endsWith('くない')) return base + 'くない';
+      if(choice.endsWith('くて')) return base + 'くて';
+      if(choice.endsWith('じゃない')) return base + 'じゃない';
+      if(choice.endsWith('いない')) return base + 'いない';
+      if(choice.endsWith('ない')) return r + 'ない';
+      return r;
+    }
+  }
+
+  const choicesHTML = qdata.choices.map(c=>{
+    const cReading = choiceReading(c, qdata.adj);
+    return `
+      <button class="choice-btn" onclick="answerQ('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
+        <ruby style="font-family:'Noto Sans JP',sans-serif;font-size:1rem">
+          ${c}<rt style="font-size:0.65em;color:var(--text-dim);font-weight:400">${cReading}</rt>
+        </ruby>
+      </button>
+    `;
+  }).join('');
 
   // Furigana: show reading below/above the word
   const furiganaHTML = `
@@ -1881,7 +1911,29 @@ window.answerQ = function(answer){
   // Lock choices — no color reveal yet
   const choicesHTML = qdata.choices.map(c=>{
     const isChosen = c === answer;
-    return `<button class="choice-btn${isChosen?' selected':''}" disabled style="${isChosen?'border-color:var(--accent-blue);background:rgba(74,158,255,0.12)':''}">${c}</button>`;
+    const cReading = (() => {
+      const r = qdata.adj.reading || '';
+      const adj = qdata.adj;
+      if(adj.type === 'na'){
+        if(c.endsWith('じゃない')) return r+'じゃない';
+        if(c.endsWith('ではない')) return r+'ではない';
+        if(c.endsWith('くない')) return r+'くない';
+        if(c.endsWith('ない')) return r+'ない';
+        if(c.endsWith('じゃなかった')) return r+'じゃなかった';
+        return r;
+      } else {
+        const base = r.endsWith('い') ? r.slice(0,-1) : r;
+        if(c.endsWith('くない')) return base+'くない';
+        if(c.endsWith('くて')) return base+'くて';
+        if(c.endsWith('じゃない')) return base+'じゃない';
+        if(c.endsWith('いない')) return base+'いない';
+        if(c.endsWith('ない')) return r+'ない';
+        return r;
+      }
+    })();
+    return `<button class="choice-btn${isChosen?' selected':''}" disabled style="${isChosen?'border-color:var(--accent-blue);background:rgba(74,158,255,0.12)':''}">
+      <ruby style="font-family:'Noto Sans JP',sans-serif;font-size:1rem">${c}<rt style="font-size:0.65em;color:var(--text-dim);font-weight:400">${cReading}</rt></ruby>
+    </button>`;
   }).join('');
 
   const typeClass = qdata.adj.type==='i'?'i-adj':'na-adj';
@@ -1935,12 +1987,29 @@ function showReveal(revealData){
   // Build per-question reveal rows
   const revealRows = myAnswers.map((a,i)=>{
     const icon = a.correct ? '✅' : '❌';
-    const furigana = `<ruby style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold)">${a.word}<rt style="font-size:0.65em;font-weight:400;color:var(--text-dim)">${state.currentQuestions[i]?.adj?.reading||''}</rt></ruby>`;
+    const adj = state.currentQuestions[i]?.adj || {};
+    const reading = adj.reading || '';
+    const furigana = `<ruby style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold)">${a.word}<rt style="font-size:0.65em;font-weight:400;color:var(--text-dim)">${reading}</rt></ruby>`;
+    // correct answer with reading
+    const base = reading.endsWith('い') ? reading.slice(0,-1) : reading;
+    const correctReading = (() => {
+      const c = a.correct_ans;
+      if(adj.type==='na'){
+        if(c.endsWith('じゃない')) return reading+'じゃない';
+        if(c.endsWith('ではない')) return reading+'ではない';
+        return reading;
+      } else {
+        if(c.endsWith('くない')) return base+'くない';
+        if(c.endsWith('じゃない')) return base+'じゃない';
+        return reading;
+      }
+    })();
+    const correctFuri = `<ruby style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold)">${a.correct_ans}<rt style="font-size:0.65em;font-weight:400;color:var(--text-dim)">${correctReading}</rt></ruby>`;
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${a.correct?'rgba(80,200,120,0.08)':'rgba(232,69,69,0.08)'};border-radius:8px;border-left:3px solid ${a.correct?'var(--accent-green)':'var(--accent-red)'}">
         <span style="font-size:1.2rem">${icon}</span>
         <span style="flex:1">${furigana}</span>
-        <span style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:${a.correct?'var(--accent-green)':'var(--accent-gold)'};font-size:0.95rem">${a.correct_ans}</span>
+        <span>${correctFuri}</span>
       </div>`;
   }).join('');
 
@@ -1976,10 +2045,23 @@ function showReveal(revealData){
         <div style="display:flex;flex-direction:column;gap:4px;background:rgba(255,255,255,0.03);border-radius:8px;padding:10px;margin-bottom:12px">${playersRows}</div>
       ` : ''}
 
-      ${state.isHost ? `<button class="btn btn-gold" style="width:100%;font-size:1rem;margin-top:4px" onclick="hostAfterReveal()">ดูผลรอบนี้ →</button>` : `<div style="text-align:center;color:var(--text-dim);font-size:0.85rem">รอ Host ไปต่อ...</div>`}
+      ${state.isHost
+        ? `<div style="text-align:center;color:var(--text-dim);font-size:0.85rem;margin-top:8px" id="reveal-countdown">ไปหน้าผลใน 4 วินาที...</div>`
+        : `<div style="text-align:center;color:var(--text-dim);font-size:0.85rem">รอดูผลรอบนี้...</div>`}
     </div>
   `;
   showScreen('screen-question');
+
+  // Countdown display
+  if(state.isHost){
+    let t = 4;
+    const cdInterval = setInterval(()=>{
+      t--;
+      const el = document.getElementById('reveal-countdown');
+      if(el) el.textContent = t > 0 ? `ไปหน้าผลใน ${t} วินาที...` : 'กำลังไปหน้าผล...';
+      if(t <= 0) clearInterval(cdInterval);
+    }, 1000);
+  }
 }
 
 window.hostAfterReveal = async function(){
@@ -2033,7 +2115,7 @@ async function waitAndReveal(){
     const allDone = questionPlayers.every(([pid])=>answers[pid]?.done);
     if(allDone){
       clearInterval(pollInterval); _resolvingQuestions=false;
-      // Push reveal phase with all answers visible
+      // Push reveal phase ให้ทุกคนเห็นพร้อมกัน
       const allAnswers = {};
       Object.entries(answers).forEach(([pid,a])=>{ allAnswers[pid]={allCorrect:a.allCorrect}; });
       await update(ref(db,'rooms/'+state.roomCode),{
@@ -2041,8 +2123,10 @@ async function waitAndReveal(){
         revealData:{ allAnswers },
         _resolving: false
       });
-      // After 0s — resolve in background (data ready)
-      await resolveRound_withAnswers(room);
+      // รอ 4 วินาทีให้ผู้เล่นอ่านหน้า reveal ก่อน แล้วค่อย resolve ผล
+      setTimeout(async()=>{
+        await resolveRound_withAnswers(room);
+      }, 4000);
     }
   }, 1000);
 }
