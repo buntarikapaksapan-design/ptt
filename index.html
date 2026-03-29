@@ -461,6 +461,7 @@
   .mq-dot.current { background: var(--accent-gold); transform: scale(1.2); }
   .mq-dot.done-correct { background: var(--accent-green); }
   .mq-dot.done-wrong { background: var(--accent-red); }
+  .mq-dot.done-chosen { background: var(--accent-blue); }
 
   /* ===== SCREEN 8: ROUND RESULT ===== */
   #screen-result { }
@@ -1466,6 +1467,10 @@ function startListeningToGame(){
       }
     }
 
+    if(phase === 'reveal'){
+      showReveal(room.revealData);
+    }
+
     if(phase === 'robber_taunt'){
       showRobberTaunt(room.robberTauntData);
     }
@@ -1855,33 +1860,29 @@ window.answerQ = function(answer){
   const correct = qdata.correct;
   const isCorrect = answer === correct && answer !== '__timeout__';
 
-  state.qAnswers.push({ answer, correct: isCorrect, word: qdata.adj.word });
+  state.qAnswers.push({ answer, correct: isCorrect, word: qdata.adj.word, correct_ans: correct });
 
   const total = state.currentQuestions.length;
   const rt = ROBBER_TYPE[state.currentRobberType] || ROBBER_TYPE.petty;
   const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
   const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
+  const furiganaHTML2 = `<ruby style="font-size:2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">${qdata.adj.word}<rt style="font-size:0.7rem;color:var(--text-dim);font-weight:400">${qdata.adj.reading}</rt></ruby>`;
 
   const progressDots = Array.from({length:total},(_,i)=>{
     let cls = 'mq-dot';
-    if(i < state.qAnswers.length) cls += state.qAnswers[i]?.correct ? ' done-correct' : ' done-wrong';
-    else if(i === state.qAnswers.length) cls += ' current';
+    if(i < state.qAnswers.length) cls += ' done-chosen'; // chosen but not revealed yet
+    if(i === state.qAnswers.length) cls += ' current';
     return `<div class="${cls}"></div>`;
   }).join('');
 
+  // Lock choices — no color reveal yet
   const choicesHTML = qdata.choices.map(c=>{
-    let cls = 'choice-btn';
-    if(c === correct) cls += ' correct';
-    else if(c === answer && !isCorrect) cls += ' wrong';
-    return `<button class="${cls}" disabled>${c}</button>`;
+    const isChosen = c === answer;
+    return `<button class="choice-btn${isChosen?' selected':''}" disabled style="${isChosen?'border-color:var(--accent-blue);background:rgba(74,158,255,0.12)':''}">${c}</button>`;
   }).join('');
 
-  const randMsg = (arr) => arr[Math.floor(Math.random()*arr.length)];
-  const msgObj = isCorrect ? randMsg(CORRECT_MSGS) : randMsg(WRONG_MSGS);
-  const furiganaHTML2 = `<ruby style="font-size:2rem;font-weight:700;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif">${qdata.adj.word}<rt style="font-size:0.7rem;color:var(--text-dim);font-weight:400">${qdata.adj.reading}</rt></ruby>`;
-
-  const isLast = (state.currentQIndex >= total);
-  const nextLabel = isLast ? (state.qAnswers.length >= total ? 'ส่งคำตอบ →' : 'ข้อถัดไป →') : 'ข้อถัดไป →';
+  const typeClass = qdata.adj.type==='i'?'i-adj':'na-adj';
+  const typeLabel = qdata.adj.type==='i'?'い-adj':'な-adj';
 
   document.getElementById('screen-question').innerHTML = `
     <div class="panel question-panel slide-up">
@@ -1893,29 +1894,93 @@ window.answerQ = function(answer){
       <div class="question-box">
         <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
         <div style="margin:8px 0">${furiganaHTML2}</div>
+        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:8px">${typeLabel}</div>
       </div>
       <div class="choices-grid">${choicesHTML}</div>
-      <div style="text-align:center;padding:8px;font-size:1.3rem;font-weight:900;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
-        ${isCorrect ? '✅ ถูกต้อง!' : `❌ ผิด! → <span style="font-family:'Noto Sans JP',sans-serif;color:var(--accent-gold)">${correct}</span>`}
+      <div style="text-align:center;padding:12px;color:var(--text-dim);font-size:0.95rem">
+        ⏳ รอผู้เล่นทุกคนตอบ...
       </div>
-      <div style="text-align:center;background:${isCorrect?'rgba(80,200,120,0.1)':'rgba(232,69,69,0.1)'};border-radius:10px;padding:12px 16px;margin:6px 0">
-        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1.1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'#ff8080'};margin-bottom:6px">${msgObj.jp}</div>
-        <div style="font-size:0.95rem;color:${isCorrect?'#a0f0b0':'#ffcccc'};font-weight:600">${msgObj.th}</div>
-      </div>
-      <button class="btn btn-gold" style="width:100%;margin-top:8px" onclick="nextQuestion()">
-        ${state.qAnswers.length >= total ? 'ส่งคำตอบ →' : 'ข้อถัดไป →'}
-      </button>
     </div>
   `;
-};
 
-window.nextQuestion = function(){
-  state.currentQIndex++;
-  if(state.currentQIndex < state.currentQuestions.length){
-    renderQuestion();
+  // Auto-advance to next question or submit after choosing
+  if(state.qAnswers.length < total){
+    // Still have more questions — go next after brief pause
+    setTimeout(()=>{
+      state.currentQIndex++;
+      renderQuestion();
+    }, 800);
   } else {
+    // All answered — submit
     submitAnswers();
   }
+};
+
+// ===== REVEAL ANSWERS (called when host pushes reveal phase) =====
+function showReveal(revealData){
+  if(!revealData) return;
+  const myAnswers = state.qAnswers;
+  if(!myAnswers || myAnswers.length === 0) return;
+
+  const randMsg = (arr) => arr[Math.floor(Math.random()*arr.length)];
+  const allCorrect = myAnswers.every(a=>a.correct);
+  const msgObj = allCorrect ? randMsg(CORRECT_MSGS) : randMsg(WRONG_MSGS);
+  const rt = ROBBER_TYPE[state.currentRobberType] || ROBBER_TYPE.petty;
+  const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
+  const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
+
+  // Build per-question reveal rows
+  const revealRows = myAnswers.map((a,i)=>{
+    const icon = a.correct ? '✅' : '❌';
+    const furigana = `<ruby style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold)">${a.word}<rt style="font-size:0.65em;font-weight:400;color:var(--text-dim)">${state.currentQuestions[i]?.adj?.reading||''}</rt></ruby>`;
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${a.correct?'rgba(80,200,120,0.08)':'rgba(232,69,69,0.08)'};border-radius:8px;border-left:3px solid ${a.correct?'var(--accent-green)':'var(--accent-red)'}">
+        <span style="font-size:1.2rem">${icon}</span>
+        <span style="flex:1">${furigana}</span>
+        <span style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:${a.correct?'var(--accent-green)':'var(--accent-gold)'};font-size:0.95rem">${a.correct_ans}</span>
+      </div>`;
+  }).join('');
+
+  // All players summary from revealData
+  const playersRows = Object.entries(revealData.allAnswers||{}).map(([pid,data])=>{
+    const p = state.players[pid];
+    if(!p) return '';
+    const ok = data.allCorrect;
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:0.85rem">
+      <span>${p.avatar}</span><span style="flex:1;font-weight:600">${p.name}</span>
+      <span style="color:${ok?'var(--accent-green)':'var(--accent-red)'}">${ok?'✅ ผ่าน':'❌ ผิด'}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('screen-question').innerHTML = `
+    <div class="panel question-panel slide-up" style="max-height:90vh;overflow-y:auto">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:${allCorrect?'2.5':'2.5'}rem;margin-bottom:8px">${allCorrect?'🎉':'💀'}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'};margin-bottom:4px">
+          ${allCorrect ? '✅ ถูกต้อง!' : '❌ ผิด!'}
+        </div>
+      </div>
+
+      <div style="background:${allCorrect?'rgba(80,200,120,0.1)':'rgba(232,69,69,0.12)'};border-radius:14px;padding:16px 18px;margin-bottom:16px;text-align:center">
+        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1.6rem;font-weight:900;color:${allCorrect?'var(--accent-green)':'#ff6060'};margin-bottom:8px">${msgObj.jp}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:${allCorrect?'#a0f0b0':'#ffaaaa'};line-height:1.5">${msgObj.th}</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${revealRows}</div>
+
+      ${playersRows ? `
+        <div style="color:var(--text-dim);font-size:0.8rem;margin-bottom:6px">ผลของทุกคน</div>
+        <div style="display:flex;flex-direction:column;gap:4px;background:rgba(255,255,255,0.03);border-radius:8px;padding:10px;margin-bottom:12px">${playersRows}</div>
+      ` : ''}
+
+      ${state.isHost ? `<button class="btn btn-gold" style="width:100%;font-size:1rem;margin-top:4px" onclick="hostAfterReveal()">ดูผลรอบนี้ →</button>` : `<div style="text-align:center;color:var(--text-dim);font-size:0.85rem">รอ Host ไปต่อ...</div>`}
+    </div>
+  `;
+  showScreen('screen-question');
+}
+
+window.hostAfterReveal = async function(){
+  await update(ref(db,'rooms/'+state.roomCode),{ phase:'result' });
 };
 
 async function submitAnswers(){
@@ -1927,26 +1992,24 @@ async function submitAnswers(){
     timestamp: Date.now()
   });
 
-  // Rebuild screen with result message
+  // Show waiting screen
   document.getElementById('screen-question').innerHTML = `
     <div class="panel question-panel">
       <div style="text-align:center;padding:40px">
-        <div style="font-size:3rem;margin-bottom:12px">${allCorrect?'✅':'❌'}</div>
-        <div style="font-size:1.2rem;font-weight:700;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'}">${allCorrect?'ตอบถูกทุกข้อ!':'ตอบผิด!'}</div>
-        <div style="color:var(--text-dim);margin-top:8px">รอผลรวมจากทุกคน...</div>
+        <div style="font-size:3rem;margin-bottom:12px">⏳</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--accent-gold)">ส่งคำตอบแล้ว!</div>
+        <div style="color:var(--text-dim);margin-top:8px">รอทุกคนตอบครบก่อนเฉลยพร้อมกัน...</div>
       </div>
     </div>
   `;
   showScreen('screen-question');
 
-  // Host waits for all to answer, then resolves
   if(state.isHost){
-    waitAndResolveQuestions();
+    waitAndReveal();
   }
 }
 
-let _resolvingQuestions = false;
-async function waitAndResolveQuestions(){
+async function waitAndReveal(){
   if(_resolvingQuestions) return;
   _resolvingQuestions = true;
 
@@ -1957,26 +2020,33 @@ async function waitAndResolveQuestions(){
     const pileResults = room.pileResults || {};
     const answers = room.answers || {};
 
-    // Anyone with needsQuestion=true must answer
     const questionPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.needsQuestion===true);
-
     if(questionPlayers.length === 0){
-      clearInterval(pollInterval);
-      _resolvingQuestions = false;
+      clearInterval(pollInterval); _resolvingQuestions=false;
+      // No one needed to answer — go straight to resolve
       await resolveRound_withAnswers(room);
       return;
     }
-
-    const allAnswered = questionPlayers.every(([pid])=>answers[pid]?.done);
-    if(allAnswered){
-      clearInterval(pollInterval);
-      _resolvingQuestions = false;
+    const allDone = questionPlayers.every(([pid])=>answers[pid]?.done);
+    if(allDone){
+      clearInterval(pollInterval); _resolvingQuestions=false;
+      // Push reveal phase with all answers visible
+      const allAnswers = {};
+      Object.entries(answers).forEach(([pid,a])=>{ allAnswers[pid]={allCorrect:a.allCorrect}; });
+      await update(ref(db,'rooms/'+state.roomCode),{
+        phase:'reveal',
+        revealData:{ allAnswers },
+        _resolving: false
+      });
+      // After 0s — resolve in background (data ready)
       await resolveRound_withAnswers(room);
     }
   }, 1000);
 }
 
-// Unified resolver for both normal-gravel and robber rounds
+let _resolvingQuestions = false;
+
+// Unified resolver
 async function resolveRound_withAnswers(room){
   await resolveRobberRound(room);
 }
