@@ -943,26 +943,21 @@ function genDistractors(adj, correct){
   const distractors = [];
 
   if(adj.type === 'i'){
-    // ใช้ negPresent เป็นฐานทั้งหมด — ป้องกัน irregular เช่น いい/よい ได้ผล /よじゃない
-    // correct = e.g. "よくない", "大きくない"
-    const base = correct.replace('くない',''); // "よ", "大きく" → no, just strip suffix
-    // ใช้ reading แทนเพื่อสร้าง wrong forms
-    const r = adj.reading; // e.g. "いい" or "おおきい"
-    const rBase = r.endsWith('い') ? r.slice(0,-1) : r; // "おおき"
+    const r = adj.reading;
+    const rBase = r.endsWith('い') ? r.slice(0,-1) : r;
 
-    distractors.push(rBase + 'じゃない');    // na-adj style (ผิด)
-    distractors.push(rBase + 'くて');        // te-form (ผิดบริบท)
-    distractors.push(r + 'ない');            // ลืมเปลี่ยน い→く
-    distractors.push(correct + 'です');      // เติม polite ผิด
+    distractors.push(rBase + 'じゃない');
+    distractors.push(rBase + 'くて');
+    distractors.push(r + 'ない');
+    distractors.push(correct + 'です');
   } else {
     const base = adj.word;
-    distractors.push(base + 'くない');       // สับสนกับ い-adj
-    distractors.push(base + 'ではない');     // formal ยังไม่ได้เรียน
-    distractors.push(base + 'ない');         // ลืมใส่ じゃ
-    distractors.push(base + 'じゃなかった'); // past tense
+    distractors.push(base + 'くない');
+    distractors.push(base + 'ではない');
+    distractors.push(base + 'ない');
+    distractors.push(base + 'じゃなかった');
   }
 
-  // Filter ไม่ให้ซ้ำกับ correct และไม่ซ้ำกันเอง
   const seen = new Set([correct]);
   const pool = distractors.filter(d => {
     if(seen.has(d)) return false;
@@ -1005,22 +1000,19 @@ const NIGHT_CONFIG = {
 const ROBBER_TYPE = {
   petty: { name:'โจรลูกกระจ๊อก', emoji:'🦹', badge:'petty',
     moneyGain:300000, lossOnFail:303000, heartLoss:0.5, bonusOnWin:0, weaponOnWin:false,
-    questionCount:1,  // 1 ข้อ
+    questionCount:1,
   },
   gang: { name:'กลุ่มโจรลูกกระจ๊อก', emoji:'🦹🦹', badge:'gang',
     moneyGain:500000, lossOnFail:530000, heartLoss:0.5, bonusOnWin:50000, weaponOnWin:false,
-    questionCount:4,  // 1+3 ข้อ
+    questionCount:4,
   },
   boss: { name:'หัวหน้าโจร', emoji:'🦹‍♂️', badge:'boss',
     moneyGain:800000, lossOnFail:850000, heartLoss:1, bonusOnWin:50000, weaponOnWin:true,
-    questionCount:5,  // 1+4 ข้อ
+    questionCount:5,
   }
 };
 
-// Money gains for normal rounds
 const MONEY_NORMAL = 300000;
-
-// Player avatars
 const AVATARS = ['🧑','👩','👨','🧒','👧','👦','🧑‍🎓','👩‍🏫','🧑‍💼','👮'];
 
 // ===== STATE =====
@@ -1032,7 +1024,7 @@ let state = {
   players: {},
   day: 1,
   round: 1,
-  phase: 'lobby', // lobby, night-intro, select, emergency, question, result, summary, final
+  phase: 'lobby',
   currentRobberType: null,
   isRobberRound: false,
   myPileChoice: null,
@@ -1070,7 +1062,6 @@ function fmtMoneyAbs(n){ return n.toLocaleString('th-TH')+' ฿'; }
 function heartsDisplay(h){
   const full = Math.floor(h);
   const half = (h % 1 >= 0.5) ? 1 : 0;
-  const empty = Math.floor(5 - h - (half*0.5));
   return '❤️'.repeat(full) + (half?'🖤':'') + '';
 }
 
@@ -1175,14 +1166,13 @@ function showStatus(elId, msg, type){
 }
 
 // ===== SINGLE LISTENER MANAGER =====
-// ใช้ listener เดียวตลอดเกม — unsubscribe เก่าก่อนเสมอ
 function unsubAll(){
   state.listeners.forEach(u=>{ try{u();}catch(e){} });
   state.listeners = [];
 }
 
 function attachRoomListener(code, handler){
-  unsubAll(); // ลบ listener เก่าทั้งหมดก่อน
+  unsubAll();
   const unsub = onValue(ref(db,'rooms/'+code), handler);
   state.listeners.push(unsub);
 }
@@ -1193,7 +1183,8 @@ function enterLobby(code){
   document.getElementById('lobby-room-code').textContent = code;
   if(state.isHost) document.getElementById('host-controls').style.display = 'block';
 
-  attachRoomListener(code, async snap=>{
+  // ★ FIX: เพิ่ม async ให้ callback — เพราะข้างในมี await
+  attachRoomListener(code, async (snap)=>{
     if(!snap.exists()) return;
     const room = snap.val();
     const phase = room.phase;
@@ -1229,7 +1220,7 @@ function enterLobby(code){
       state._hostRevealStarted = false;
       const nc = NIGHT_CONFIG[room.day||1];
 
-      // รอบโจร: emergency ก่อนเลือกกอง — push ทันทีที่เข้า select
+      // รอบโจร: emergency ก่อนเลือกกอง
       if(state.isHost && nc.robberRounds.includes(room.round) && !room.emergencyData && !room._resolving){
         const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
         const pileCount2 = nc.piles;
@@ -1273,7 +1264,7 @@ function enterLobby(code){
       if(allChose && state.isHost){
         const resolvingRef = ref(db,'rooms/'+code+'/_resolving');
         runTransaction(resolvingRef, current => {
-          if(current === true) return; // abort — someone else already resolving
+          if(current === true) return;
           return true;
         }).then(result => {
           if(result.committed) resolveRound(room);
@@ -1376,7 +1367,6 @@ window.proceedFromHowToPlay = async function(){
 
 // ===== NIGHT INTRO =====
 function showNightIntro(day){
-  // Reset warning banner เพื่อไม่ให้ข้อความเก่าค้าง
   const oldBanner = document.getElementById('robber-warning-banner');
   if(oldBanner) oldBanner.remove();
   const nc = NIGHT_CONFIG[day];
@@ -1385,9 +1375,6 @@ function showNightIntro(day){
   document.getElementById('night-title').textContent = nc.name;
   document.getElementById('night-desc').textContent = nc.desc;
 
-  // Robber info
-  const ri = document.getElementById('night-robber-info');
-  // ไม่แสดงข้อมูลโจรในหน้า night intro
   document.getElementById('night-robber-info').style.display = 'none';
 
   const btn = document.getElementById('night-continue-btn');
@@ -1398,20 +1385,16 @@ function showNightIntro(day){
     btn.style.display = 'none';
   }
   showScreen('screen-night');
-  // Single listener จาก enterLobby จัดการ phase change ทั้งหมดแล้ว
 }
 
 window.nightIntroDone = async function(){
   if(!state.isHost) return;
-  // Prepare game round
   state.day = parseInt(document.getElementById('night-day-badge').textContent.replace('วันที่ ',''));
   state.round = 1;
 
-  // สร้าง adjOrder shuffle ใหม่สำหรับ Day นี้ และ reset index เป็น 0
   const adjOrder = shuffleArray([...Array(ADJECTIVES.length).keys()]);
   state.dayQALog = [];
 
-  // Determine robber round types for whole day upfront
   const nc = NIGHT_CONFIG[state.day];
   const roundRobberTypes = {};
   nc.robberRounds.forEach(r=>{
@@ -1429,12 +1412,10 @@ window.nightIntroDone = async function(){
     adjOrder: adjOrder,
     adjIndex: 0
   });
-  // Single listener จะรับ phase:'select' แล้ว showGameBoard เองอัตโนมัติ
 };
 
 // ===== GAME BOARD =====
 function showGameBoard(){
-  // Clear countdown interval จาก round ก่อน ป้องกัน unlock กองผิด round
   if(state.countInterval){ clearInterval(state.countInterval); state.countInterval = null; }
   const day = state.day;
   const round = state.round;
@@ -1450,7 +1431,6 @@ function showGameBoard(){
   updatePlayersStatus();
   renderPiles(nc.piles);
 
-  // Banner แสดงข้อมูลรอบ (ไม่ล็อคกองแล้ว)
   let warningEl = document.getElementById('robber-warning-banner');
   if(!warningEl){
     warningEl = document.createElement('div');
@@ -1514,18 +1494,14 @@ async function choosePile(pileNum){
   if(state.myPileChoice !== null) return;
   state.myPileChoice = pileNum;
 
-  // Mark button selected
   document.querySelectorAll('.pile-btn').forEach(b=>{
     b.disabled = true;
     if(parseInt(b.dataset.pile)===pileNum) b.classList.add('selected');
   });
 
-  // Write to Firebase
   await set(ref(db,'rooms/'+state.roomCode+'/pileChoices/'+state.playerId), pileNum);
   document.getElementById('waiting-text').textContent = 'คุณเลือกกองที่ '+pileNum+' แล้ว รอผู้เล่นอื่น...';
 }
-
-// startListeningToGame ถูกรวมเข้า enterLobby listener เดียวแล้ว
 
 function updateChoiceIndicators(choices){
   const container = document.getElementById('choice-indicators');
@@ -1561,7 +1537,6 @@ async function resolveRound(room){
   const activePlayers = Object.entries(room.players).filter(([pid,p])=>!p.eliminated);
   const pileCount = nc.piles;
 
-  // รอบโจร: ใช้ข้อมูลจาก emergencyData ที่เตรียมไว้แล้ว
   if(isRobberRound && room.emergencyData){
     const ed = room.emergencyData;
     const newPileResults = {};
@@ -1580,7 +1555,7 @@ async function resolveRound(room){
     });
     return;
   }
-  // รอบปกติ: สุ่มเงิน/กรวด 50/50
+
   const pileType = {};
   for(let i=1;i<=pileCount;i++){
     pileType[i] = Math.random() < 0.5 ? 'money' : 'gravel';
@@ -1592,7 +1567,6 @@ async function resolveRound(room){
     if(!hasGravel){ pileType[pileCount]='gravel'; }
   }
 
-  // Generate questions สำหรับรอบปกติ
   const adjIdx = room.adjIndex || 0;
   const adjOrder = room.adjOrder || shuffleArray([...Array(ADJECTIVES.length).keys()]);
   const pickedAdj = ADJECTIVES[adjOrder[adjIdx % adjOrder.length]];
@@ -1600,7 +1574,6 @@ async function resolveRound(room){
   const normalQuestionData = [{ adj:{word:pickedAdj.word,reading:pickedAdj.reading,meaning:pickedAdj.meaning,type:pickedAdj.type}, correct:q.correct, choices:q.choices }];
   await update(ref(db,'rooms/'+state.roomCode),{ adjIndex: adjIdx+1, adjOrder });
 
-  // Per-player pile result (รอบปกติเท่านั้น)
   const pileResults = {};
   activePlayers.forEach(([pid,p])=>{
     const chosen = pileChoices[pid];
@@ -1609,18 +1582,12 @@ async function resolveRound(room){
     pileResults[pid] = { pile:chosen, type, hitRobber:false, needsQuestion };
   });
 
-  // push question phase
   await update(ref(db,'rooms/'+state.roomCode),{
     phase: 'question',
     pileResults,
     questionData: normalQuestionData,
     _resolving: false
   });
-}
-
-async function calcNormalRoundResult(room, pileResults, pileType){
-  // Legacy — kept for safety but not called anymore
-  return { perPlayer:{}, isRobberRound:false };
 }
 
 // ===== EMERGENCY =====
@@ -1675,7 +1642,6 @@ function showEmergency(data){
   `;
   showScreen('screen-emergency');
 
-  // Auto countdown → go to select after 4s (Host only)
   if(state.isHost){
     let t = 4;
     const cdInterval = setInterval(async()=>{
@@ -1694,15 +1660,12 @@ function showEmergency(data){
   }
 }
 
-// Helper: wrap Japanese text with furigana if reading available
 function withFurigana(word, reading){
   if(!reading || reading === word) return `<span style="font-family:'Noto Sans JP',sans-serif">${word}</span>`;
   return `<ruby style="font-family:'Noto Sans JP',sans-serif">${word}<rt style="font-size:0.6em;color:var(--text-dim);font-weight:400">${reading}</rt></ruby>`;
 }
 
-// Furigana for conjugated forms (choices)
 function rubyChoice(text){
-  // Simple: wrap any kanji-containing text with furigana placeholder style
   return `<span style="font-family:'Noto Sans JP',sans-serif;font-size:1.05rem">${text}</span>`;
 }
 
@@ -1732,7 +1695,6 @@ const GRAVEL_TAUNTS_PRE = [
 function startQuestion(questionData, robberType){
   if(!questionData || questionData.length === 0) return;
 
-  // Hard reset ทุกครั้ง ป้องกันข้ามข้อ
   clearInterval(qTimer);
   state.currentQuestions = questionData;
   state.currentQIndex = 0;
@@ -1780,13 +1742,9 @@ function renderQuestion(){
     return `<div class="${cls}"></div>`;
   }).join('');
 
-  // สร้าง furigana สำหรับตัวเลือก — ใช้ reading ของ adj เป็นฐาน แล้วแทนที่ส่วนท้าย
   function choiceReading(choice, adj){
-    // ถ้าเป็น な-adj: reading + conjugation suffix
-    // ถ้าเป็น い-adj: reading เปลี่ยน い→ suffix
     const r = adj.reading || '';
     if(adj.type === 'na'){
-      // base reading ไม่เปลี่ยน + suffix
       if(choice.endsWith('じゃない')) return r + 'じゃない';
       if(choice.endsWith('ではない')) return r + 'ではない';
       if(choice.endsWith('くない')) return r + 'くない';
@@ -1794,7 +1752,6 @@ function renderQuestion(){
       if(choice.endsWith('じゃなかった')) return r + 'じゃなかった';
       return r;
     } else {
-      // い-adj: ตัด い ออก แล้วเติม suffix
       const base = r.endsWith('い') ? r.slice(0,-1) : r;
       if(choice.endsWith('くない')) return base + 'くない';
       if(choice.endsWith('くて')) return base + 'くて';
@@ -1815,7 +1772,6 @@ function renderQuestion(){
     `;
   }).join('');
 
-  // Furigana: show reading above the word — ชิดกัน อ่านง่าย
   const furiganaHTML = `
     <ruby style="font-family:'Noto Sans JP',sans-serif;font-size:3.5rem;font-weight:900;color:var(--accent-gold);ruby-position:over;display:inline-block;text-align:center">
       ${qdata.adj.word}
@@ -1841,7 +1797,6 @@ function renderQuestion(){
     </div>
   `;
 
-  // Timer — auto timeout only, no auto-next between questions
   clearInterval(qTimer);
   let timeLeft = 20;
   qTimer = setInterval(()=>{
@@ -1872,12 +1827,11 @@ window.answerQ = function(answer){
 
   const progressDots = Array.from({length:total},(_,i)=>{
     let cls = 'mq-dot';
-    if(i < state.qAnswers.length) cls += ' done-chosen'; // chosen but not revealed yet
+    if(i < state.qAnswers.length) cls += ' done-chosen';
     if(i === state.qAnswers.length) cls += ' current';
     return `<div class="${cls}"></div>`;
   }).join('');
 
-  // Lock choices — no color reveal yet
   const choicesHTML = qdata.choices.map(c=>{
     const isChosen = c === answer;
     const cReading = (() => {
@@ -1928,20 +1882,17 @@ window.answerQ = function(answer){
     </div>
   `;
 
-  // Auto-advance to next question or submit after choosing
   if(state.qAnswers.length < total){
-    // Still have more questions — go next after brief pause
     setTimeout(()=>{
-      state.currentQIndex = state.qAnswers.length; // sync index with answers
+      state.currentQIndex = state.qAnswers.length;
       renderQuestion();
     }, 800);
   } else {
-    // All answered — submit
     submitAnswers();
   }
 };
 
-// ===== REVEAL ANSWERS (called when host pushes reveal phase) =====
+// ===== REVEAL ANSWERS =====
 function showReveal(revealData){
   if(!revealData) return;
   const myAnswers = state.qAnswers;
@@ -1954,13 +1905,11 @@ function showReveal(revealData){
   const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
   const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
 
-  // Build per-question reveal rows
   const revealRows = myAnswers.map((a,i)=>{
     const icon = a.correct ? '✅' : '❌';
     const adj = state.currentQuestions[i]?.adj || {};
     const reading = adj.reading || '';
     const furigana = `<ruby style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold)">${a.word}<rt style="font-size:0.65em;font-weight:400;color:var(--text-dim)">${reading}</rt></ruby>`;
-    // correct answer with reading
     const base = reading.endsWith('い') ? reading.slice(0,-1) : reading;
     const correctReading = (() => {
       const c = a.correct_ans;
@@ -1983,7 +1932,6 @@ function showReveal(revealData){
       </div>`;
   }).join('');
 
-  // All players summary from revealData
   const playersRows = Object.entries(revealData.allAnswers||{}).map(([pid,data])=>{
     const p = state.players[pid];
     if(!p) return '';
@@ -1997,7 +1945,7 @@ function showReveal(revealData){
   document.getElementById('screen-question').innerHTML = `
     <div class="panel question-panel slide-up" style="max-height:90vh;overflow-y:auto">
       <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:${allCorrect?'2.5':'2.5'}rem;margin-bottom:8px">${allCorrect?'🎉':'💀'}</div>
+        <div style="font-size:2.5rem;margin-bottom:8px">${allCorrect?'🎉':'💀'}</div>
         <div style="font-size:1.6rem;font-weight:900;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'};margin-bottom:4px">
           ${allCorrect ? '✅ ถูกต้อง!' : '❌ ผิด!'}
         </div>
@@ -2022,7 +1970,6 @@ function showReveal(revealData){
   `;
   showScreen('screen-question');
 
-  // Countdown display
   if(state.isHost){
     let t = 4;
     const cdInterval = setInterval(()=>{
@@ -2047,7 +1994,6 @@ async function submitAnswers(){
     timestamp: Date.now()
   });
 
-  // Show waiting screen
   document.getElementById('screen-question').innerHTML = `
     <div class="panel question-panel">
       <div style="text-align:center;padding:40px">
@@ -2079,16 +2025,13 @@ async function waitAndReveal(){
 
     if(questionPlayers.length === 0){
       clearInterval(pollInterval); _resolvingQuestions=false;
-      // No question players at all — resolve immediately without reveal
       await resolveRound_withAnswers(room);
       return;
     }
 
-    // Also handle case where Host has money (not in questionPlayers) — still need to wait
     const allDone = questionPlayers.every(([pid])=>answers[pid]?.done);
     if(allDone){
       clearInterval(pollInterval);
-      // ยังไม่ reset _resolvingQuestions — ยังทำงานอยู่ใน setTimeout
       const allAnswers = {};
       Object.entries(answers).forEach(([pid,a])=>{ allAnswers[pid]={allCorrect:a.allCorrect}; });
       await update(ref(db,'rooms/'+state.roomCode),{
@@ -2099,7 +2042,7 @@ async function waitAndReveal(){
       setTimeout(async()=>{
         const freshSnap = await get(ref(db,'rooms/'+state.roomCode));
         if(freshSnap.exists()) await resolveRound_withAnswers(freshSnap.val());
-        _resolvingQuestions = false; // reset หลัง resolve เสร็จจริงๆ
+        _resolvingQuestions = false;
       }, 4000);
     }
   }, 1000);
@@ -2107,7 +2050,6 @@ async function waitAndReveal(){
 
 let _resolvingQuestions = false;
 
-// Unified resolver
 async function resolveRound_withAnswers(room){
   await resolveRobberRound(room);
 }
@@ -2135,7 +2077,6 @@ async function resolveRobberRound(room){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
     } else if(pr.hitRobber){
-      // เจอกองโจร — ต้องผัน
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
       if(correct){
@@ -2159,18 +2100,18 @@ async function resolveRobberRound(room){
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
       outcome = correct ? 'gravel_correct' : 'gravel_wrong';
-      moneyChange = correct ? 200000 : 0; // รอบโจร เจอทองผสมกรวด ตอบถูก +200,000
+      moneyChange = correct ? 200000 : 0;
     } else if(!isRobberRound && pr.needsQuestion){
       const ans = answers[pid];
       const correct = ans?.allCorrect || false;
       outcome = correct ? 'gravel_correct' : 'gravel_wrong';
-      moneyChange = correct ? 200000 : 0; // ตอบถูก = แยกทองออกจากกรวดได้ +200,000
+      moneyChange = correct ? 200000 : 0;
     } else {
       outcome = 'gravel_safe';
       moneyChange = 0;
     }
 
-    const newMoney = (p.money||0) + moneyChange; // ไม่มี Math.max(0) — ติดลบได้
+    const newMoney = (p.money||0) + moneyChange;
     const newHearts = Math.max(0,(p.hearts||5)+heartChange);
     const newWeapons = Math.max(0,(p.weapons||0)+weaponChange);
 
@@ -2193,7 +2134,6 @@ async function resolveRobberRound(room){
 
   await update(ref(db,'rooms/'+state.roomCode), updates);
 
-  // Log QA
   const qaLog = [];
   Object.entries(answers).forEach(([pid,a])=>{
     const p = players[pid];
@@ -2203,7 +2143,6 @@ async function resolveRobberRound(room){
     });
   });
 
-  // ข้อ 5: ถ้ามีคนโดนโจร (robber_lost) → ไปหน้า robber_taunt ก่อน แล้วค่อย result
   const anyRobberLost = Object.values(perPlayer).some(pd=>pd.outcome==='robber_lost');
 
   if(isRobberRound && anyRobberLost){
@@ -2234,7 +2173,7 @@ async function resolveRobberRound(room){
   }
 }
 
-// ===== ROBBER TAUNT (after wrong answer) =====
+// ===== ROBBER TAUNT =====
 function showRobberTaunt(data){
   if(!data) return;
   if(document.getElementById('screen-emergency').classList.contains('active') &&
@@ -2309,7 +2248,6 @@ function showResult(resultData, pileResults, pileChoices){
     const mc = myData.moneyChange || 0;
     const sign = mc >= 0 ? '+' : '';
 
-    // เหตุผล
     const reasonMap = {
       'money': '💰 คุณสุ่มได้ถุงเงิน!',
       'money_robber_fled': '💰 คุณเจอถุงเงิน โจรหนีไปมือเปล่า!',
@@ -2322,7 +2260,6 @@ function showResult(resultData, pileResults, pileChoices){
     };
     rows += `<div style="padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:0.9rem;color:var(--text-dim);margin-bottom:8px">${reasonMap[o]||''}</div>`;
 
-    // สมการเงิน
     if(o === 'robber_lost'){
       const medical = myData.robberType==='boss'?50000:myData.robberType==='gang'?30000:3000;
       const stolen = myData.lossOnFail - medical;
@@ -2337,7 +2274,6 @@ function showResult(resultData, pileResults, pileChoices){
       rows += `<div class="result-row"><span class="label">⚔️ ใช้อาวุธป้องกัน</span><span class="value neutral">-1 ชิ้น</span></div>`;
     }
 
-    // สมการรวม: เงินเดิม + รอบนี้ = ใหม่
     rows += `
       <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px 14px;margin-top:10px">
         <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px">สมการรอบนี้</div>
@@ -2356,7 +2292,6 @@ function showResult(resultData, pileResults, pileChoices){
     breakdown.innerHTML = rows;
   }
 
-  // All players
   const apr = document.getElementById('all-players-results');
   apr.innerHTML = Object.entries(perPlayer||{}).map(([pid,pd])=>`
     <div class="apr-item">
@@ -2369,7 +2304,6 @@ function showResult(resultData, pileResults, pileChoices){
     </div>
   `).join('');
 
-  // Next button — host only
   const nextBtn = document.getElementById('result-next-btn');
   const nextInfo = document.getElementById('result-next-info');
   if(state.isHost){
@@ -2394,7 +2328,6 @@ window.resultNextRound = async function(){
   const day = state.day;
 
   if(round >= 10){
-    // Go to summary
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     const room = snap.val();
     const summaryData = buildSummaryData(room, day);
@@ -2404,7 +2337,6 @@ window.resultNextRound = async function(){
       round: round
     });
   } else {
-    // Next round
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'select',
       round: round+1,
@@ -2412,11 +2344,11 @@ window.resultNextRound = async function(){
       pileResults:null,
       answers:{},
       resultData:null,
+      emergencyData:null,
       _resolving:false,
       _questionResolving:false
     });
     state.round = round+1;
-    // Fetch latest room to sync roundRobberTypes before showing board
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     if(snap.exists()){
       const r = snap.val();
@@ -2480,17 +2412,14 @@ window.summaryNext = async function(){
   const day = state.day;
 
   if(day >= 3){
-    // Final
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     const room = snap.val();
     const finalData = buildFinalData(room);
     await update(ref(db,'rooms/'+state.roomCode),{ phase:'final', finalData });
   } else {
-    // Next day
     const nextDay = day+1;
     state.day = nextDay;
 
-    // Prepare robber types for next day
     const nc = NIGHT_CONFIG[nextDay];
     const roundRobberTypes = {};
     nc.robberRounds.forEach(r=>{
@@ -2506,6 +2435,7 @@ window.summaryNext = async function(){
       pileResults:null,
       answers:{},
       resultData:null,
+      emergencyData:null,
       dayQALog:[]
     });
   }
@@ -2551,8 +2481,6 @@ function showFinal(data){
 
   showScreen('screen-final');
 }
-
-// listenForPhaseChange ถูกรวมเข้า enterLobby listener เดียวแล้ว
 
 window.backToTitle = function(){
   clearInterval(qTimer);
