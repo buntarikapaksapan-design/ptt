@@ -974,52 +974,44 @@ function genDistractors(adj, correct){
 
 // Build display form (kanji+suffix) and reading for a choice string
 function buildChoiceDisplay(choiceStr, adj){
-  // choiceStr เป็น kana/mixed — หา suffix แล้วต่อกับ adj.word
   const word = adj.word;
   const reading = adj.reading;
-  // suffix คือส่วนที่ต่อจาก reading base
   const rBase = reading.endsWith('い') ? reading.slice(0,-1) : reading;
-  let suffix = '';
-  let displayWord = word;
+  const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
 
-  if(choiceStr === adj.negPresent){
-    // correct form — ใช้ negPresent โดยตรง แต่แทน reading base ด้วย word
-    suffix = adj.negPresent.replace(reading,'').replace(rBase,'');
-    // สร้างจาก negPresent แต่แสดงด้วย word
-    const negR = adj.negPresent;
+  // strip です ออกก่อน
+  const hasDes = choiceStr.endsWith('です');
+  const base = hasDes ? choiceStr.slice(0,-2) : choiceStr;
+  const des = hasDes ? 'です' : '';
+
+  // correct negPresent
+  if(base === adj.negPresent){
     if(adj.type === 'i'){
-      const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
-      return { display: wordBase + 'くない', reading: negR };
+      return { display: wordBase + 'くない' + des, reading: choiceStr };
     } else {
-      return { display: word + 'じゃない', reading: negR };
+      return { display: word + 'じゃない' + des, reading: choiceStr };
     }
   }
 
-  // Distractor — ตรวจว่า choiceStr เริ่มต้นด้วย reading base หรือ word
-  const suffixes = ['じゃない','じゃなかった','くない','くなかった','ない','ないです','くて'];
+  // distractor — match suffix then replace stem with kanji
+  const suffixes = ['じゃなかった','くなかった','じゃない','くない','ないです','ない','くて'];
   for(const suf of suffixes){
-    if(choiceStr.endsWith(suf)){
-      const stem = choiceStr.slice(0, choiceStr.length - suf.length);
-      // ถ้า stem ตรงกับ rBase หรือ reading → แทนด้วย word
-      if(stem === rBase || stem === reading){
-        const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
-        return { display: wordBase + suf, reading: choiceStr };
+    if(base.endsWith(suf)){
+      const stem = base.slice(0, base.length - suf.length);
+      if(stem === rBase || stem === reading || stem === word || stem === wordBase){
+        const displayStem = (adj.type==='i') ? wordBase : word;
+        return { display: displayStem + suf + des, reading: choiceStr };
       }
-      // ถ้า stem ตรงกับ word → ใช้ word ได้เลย
-      if(stem === word){
-        return { display: word + suf, reading: choiceStr };
-      }
-      // fallback
-      return { display: choiceStr, reading: choiceStr };
+      return { display: base + des, reading: choiceStr };
     }
   }
   return { display: choiceStr, reading: choiceStr };
 }
 
-// Generate question
+// Generate question — choices ทั้งหมดเติม です
 function generateQuestion(adj){
-  const correct = adj.negPresent;
-  const wrong = genDistractors(adj, correct);
+  const correct = adj.negPresent + 'です';
+  const wrong = genDistractors(adj, adj.negPresent).map(d => d + 'です');
   const choices = [correct, ...wrong];
   for(let i=choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}
   return { adj, correct, choices };
@@ -1087,6 +1079,7 @@ let state = {
   roundRobberTypes: {},
   _questionStarted: false,
   _hostRevealStarted: false,
+  _emergencyPushed: false,
   countInterval: null,
   listeners: []
 };
@@ -1272,8 +1265,9 @@ function enterLobby(code){
       const nc = NIGHT_CONFIG[room.day||1];
       const isRobberRound = nc.robberRounds.includes(room.round);
 
-      // กรณี 1: รอบโจร ยังไม่มี emergencyData → push emergency ก่อน
-      if(state.isHost && isRobberRound && !room.emergencyData && !room._resolving){
+      // รอบโจร + ยังไม่มี emergencyData + Host + ยังไม่เคย push รอบนี้
+      if(state.isHost && isRobberRound && !room.emergencyData && !state._emergencyPushed){
+        state._emergencyPushed = true; // set ทันที ป้องกัน push ซ้ำ
         const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
         const pileCount2 = nc.piles;
         const robberPile2 = Math.ceil(Math.random()*pileCount2);
@@ -1303,18 +1297,16 @@ function enterLobby(code){
         return;
       }
 
-      // กรณี 2: ผ่าน emergency มาแล้ว (มี emergencyData) หรือรอบปกติ → แสดง gameboard
+      // รอบโจร + มี emergencyData แล้ว (กลับมาจาก emergency) หรือรอบปกติ → showGameBoard
       if(document.getElementById('screen-game').classList.contains('active')){
         updatePlayersStatus();
-        const choices = room.pileChoices || {};
-        updateChoiceIndicators(choices);
+        updateChoiceIndicators(room.pileChoices||{});
       } else {
         showGameBoard();
       }
-      const choices = room.pileChoices || {};
-      updateChoiceIndicators(choices);
+      updateChoiceIndicators(room.pileChoices||{});
       const activePlayers = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
-      const allChose = activePlayers.every(([pid])=>choices[pid]!==undefined);
+      const allChose = activePlayers.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
       if(allChose && state.isHost){
         const resolvingRef = ref(db,'rooms/'+code+'/_resolving');
         runTransaction(resolvingRef, current => {
@@ -1327,6 +1319,7 @@ function enterLobby(code){
     }
 
     if(phase === 'emergency'){
+      // แสดง emergency screen ครั้งเดียว — guard ด้วย screen active
       if(!document.getElementById('screen-emergency').classList.contains('active')){
         showEmergency(room.emergencyData);
       }
@@ -1716,29 +1709,35 @@ function showEmergency(data){
         <div style="font-size:0.9rem;color:#ffbbbb;font-weight:600">${tauntObj.th}</div>
       </div>
 
-      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:20px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;text-align:center">
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;text-align:center">
         ${infoLine}
       </div>
 
-      ${state.isHost
-        ? `<button class="btn btn-red" style="width:100%;font-size:1.1rem;padding:14px" onclick="emergencyGoSelect()">ไปเลือกกอง! →</button>`
-        : `<div style="color:var(--text-dim);font-size:0.9rem;text-align:center">⏳ รอ Host นำไปเลือกกอง...</div>`
-      }
+      <div id="emg-countdown" style="font-size:3rem;font-weight:900;color:var(--accent-red);margin:12px 0">4</div>
+      <div style="color:var(--text-dim);font-size:0.85rem">กำลังไปเลือกกอง...</div>
     </div>
   `;
   showScreen('screen-emergency');
-}
 
-window.emergencyGoSelect = async function(){
-  if(!state.isHost) return;
-  // push select phase — emergencyData ยังคงอยู่เพื่อใช้ตอน resolve
-  // listener จะเห็น emergencyData มีอยู่แล้ว → ข้าม guard → showGameBoard
-  await update(ref(db,'rooms/'+state.roomCode),{
-    phase: 'select',
-    pileChoices: {},
-    _resolving: false
-  });
-};
+  // countdown 4 วิ แล้ว Host push select — ทุกคนเปลี่ยนหน้าพร้อมกัน
+  if(state.isHost){
+    let t = 4;
+    const cdInterval = setInterval(async()=>{
+      t--;
+      const el = document.getElementById('emg-countdown');
+      if(el) el.textContent = t > 0 ? t : '⚔️';
+      if(t <= 0){
+        clearInterval(cdInterval);
+        await update(ref(db,'rooms/'+state.roomCode),{
+          phase: 'select',
+          pileChoices: {},
+          _resolving: false
+          // emergencyData ยังอยู่ ใช้ตอน resolve
+        });
+      }
+    }, 1000);
+  }
+}
 
 // Helper: wrap Japanese text with furigana if reading available
 function withFurigana(word, reading){
@@ -2469,6 +2468,7 @@ window.resultNextRound = async function(){
       _questionResolving:false
     });
     state.round = round+1;
+    state._emergencyPushed = false;
     // Fetch latest room to sync roundRobberTypes before showing board
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     if(snap.exists()){
@@ -2613,7 +2613,7 @@ window.backToTitle = function(){
   _resolvingQuestions = false;
   if(state.countInterval){ clearInterval(state.countInterval); }
   unsubAll();
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, countInterval:null, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, _emergencyPushed:false, countInterval:null, listeners:[] };
   showScreen('screen-title');
 };
 
