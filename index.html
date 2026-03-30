@@ -897,46 +897,49 @@ async function cleanOldRooms(){
 }
 cleanOldRooms();
 
-// ===== GAME DATA =====
-const ADJECTIVES = [
-  // い-adjectives
-  { word:'大きい', reading:'おおきい', meaning:'ใหญ่', type:'i', negPresent:'大きくない' },
-  { word:'小さい', reading:'ちいさい', meaning:'เล็ก', type:'i', negPresent:'小さくない' },
-  { word:'高い', reading:'たかい', meaning:'แพง/สูง', type:'i', negPresent:'高くない' },
-  { word:'安い', reading:'やすい', meaning:'ถูก', type:'i', negPresent:'安くない' },
-  { word:'新しい', reading:'あたらしい', meaning:'ใหม่', type:'i', negPresent:'新しくない' },
-  { word:'古い', reading:'ふるい', meaning:'เก่า', type:'i', negPresent:'古くない' },
-  { word:'いい/よい', reading:'いい', meaning:'ดี', type:'i', negPresent:'よくない' },
-  { word:'悪い', reading:'わるい', meaning:'แย่/ไม่ดี', type:'i', negPresent:'悪くない' },
-  { word:'難しい', reading:'むずかしい', meaning:'ยาก', type:'i', negPresent:'難しくない' },
-  { word:'易しい', reading:'やさしい', meaning:'ง่าย', type:'i', negPresent:'易しくない' },
-  { word:'楽しい', reading:'たのしい', meaning:'สนุก', type:'i', negPresent:'楽しくない' },
-  { word:'おいしい', reading:'おいしい', meaning:'อร่อย', type:'i', negPresent:'おいしくない' },
-  { word:'暑い', reading:'あつい', meaning:'ร้อน(อากาศ)', type:'i', negPresent:'暑くない' },
-  { word:'寒い', reading:'さむい', meaning:'หนาว', type:'i', negPresent:'寒くない' },
-  { word:'多い', reading:'おおい', meaning:'มาก', type:'i', negPresent:'多くない' },
-  { word:'少ない', reading:'すくない', meaning:'น้อย', type:'i', negPresent:'少なくない' },
-  { word:'長い', reading:'ながい', meaning:'ยาว', type:'i', negPresent:'長くない' },
-  { word:'短い', reading:'みじかい', meaning:'สั้น', type:'i', negPresent:'短くない' },
-  { word:'忙しい', reading:'いそがしい', meaning:'ยุ่ง', type:'i', negPresent:'忙しくない' },
-  { word:'白い', reading:'しろい', meaning:'ขาว', type:'i', negPresent:'白くない' },
-  // な-adjectives
-  { word:'きれい', reading:'きれい', meaning:'สวย/สะอาด', type:'na', negPresent:'きれいじゃない' },
-  { word:'有名', reading:'ゆうめい', meaning:'มีชื่อเสียง', type:'na', negPresent:'有名じゃない' },
-  { word:'元気', reading:'げんき', meaning:'มีสุขภาพดี', type:'na', negPresent:'元気じゃない' },
-  { word:'静か', reading:'しずか', meaning:'เงียบ', type:'na', negPresent:'静かじゃない' },
-  { word:'にぎやか', reading:'にぎやか', meaning:'賑やか', type:'na', negPresent:'にぎやかじゃない' },
-  { word:'便利', reading:'べんり', meaning:'สะดวก', type:'na', negPresent:'便利じゃない' },
-  { word:'不便', reading:'ふべん', meaning:'ไม่สะดวก', type:'na', negPresent:'不便じゃない' },
-  { word:'好き', reading:'すき', meaning:'ชอบ', type:'na', negPresent:'好きじゃない' },
-  { word:'嫌い', reading:'きらい', meaning:'ไม่ชอบ', type:'na', negPresent:'嫌いじゃない' },
-  { word:'上手', reading:'じょうず', meaning:'เก่ง', type:'na', negPresent:'上手じゃない' },
-  { word:'下手', reading:'へた', meaning:'ไม่เก่ง', type:'na', negPresent:'下手じゃない' },
-  { word:'暇', reading:'ひま', meaning:'ว่าง', type:'na', negPresent:'暇じゃない' },
-  { word:'親切', reading:'しんせつ', meaning:'ใจดี', type:'na', negPresent:'親切じゃない' },
-  { word:'大切', reading:'たいせつ', meaning:'สำคัญ', type:'na', negPresent:'大切じゃない' },
-  { word:'大丈夫', reading:'だいじょうぶ', meaning:'ไม่เป็นไร', type:'na', negPresent:'大丈夫じゃない' },
-];
+// ===== ADJECTIVES PER DAY (ตามคำศัพท์ครูบี) =====
+const ADJECTIVES_BY_DAY = {
+  1: [
+    { word:'大きい',   reading:'おおきい',   meaning:'ใหญ่',       type:'i',  negPresent:'大きくない' },
+    { word:'小さい',   reading:'ちいさい',   meaning:'เล็ก',       type:'i',  negPresent:'小さくない' },
+    { word:'高い',     reading:'たかい',     meaning:'แพง/สูง',    type:'i',  negPresent:'高くない' },
+    { word:'安い',     reading:'やすい',     meaning:'ถูก',        type:'i',  negPresent:'安くない' },
+    { word:'危ない',   reading:'あぶない',   meaning:'อันตราย',    type:'i',  negPresent:'危なくない' },
+    { word:'安全',     reading:'あんぜん',   meaning:'ปลอดภัย',   type:'na', negPresent:'安全じゃない' },
+    { word:'有名',     reading:'ゆうめい',   meaning:'มีชื่อเสียง',type:'na', negPresent:'有名じゃない' },
+    { word:'いい',     reading:'いい',       meaning:'ดี',         type:'i',  negPresent:'よくない' },
+    { word:'悪い',     reading:'わるい',     meaning:'แย่/ไม่ดี',  type:'i',  negPresent:'悪くない' },
+    { word:'若い',     reading:'わかい',     meaning:'อ่อนเยาว์',  type:'i',  negPresent:'若くない' },
+  ],
+  2: [
+    { word:'得意',     reading:'とくい',     meaning:'ถนัด',       type:'na', negPresent:'得意じゃない' },
+    { word:'下手',     reading:'へた',       meaning:'ไม่เก่ง',    type:'na', negPresent:'下手じゃない' },
+    { word:'上手',     reading:'じょうず',   meaning:'เก่ง',       type:'na', negPresent:'上手じゃない' },
+    { word:'新しい',   reading:'あたらしい', meaning:'ใหม่',       type:'i',  negPresent:'新しくない' },
+    { word:'古い',     reading:'ふるい',     meaning:'เก่า',       type:'i',  negPresent:'古くない' },
+    { word:'やさしい', reading:'やさしい',   meaning:'ง่าย/อ่อนโยน',type:'i', negPresent:'やさしくない' },
+    { word:'冷たい',   reading:'つめたい',   meaning:'เย็น',       type:'i',  negPresent:'冷たくない' },
+    { word:'便利',     reading:'べんり',     meaning:'สะดวก',      type:'na', negPresent:'便利じゃない' },
+    { word:'にぎやか', reading:'にぎやか',   meaning:'賑やか/คึกคัก',type:'na',negPresent:'にぎやかじゃない' },
+    { word:'静か',     reading:'しずか',     meaning:'เงียบสงบ',   type:'na', negPresent:'静かじゃない' },
+    { word:'かわいい', reading:'かわいい',   meaning:'น่ารัก',     type:'i',  negPresent:'かわいくない' },
+  ],
+  3: [
+    { word:'かっこいい',reading:'かっこいい', meaning:'หล่อ/เท่',  type:'i',  negPresent:'かっこよくない' },
+    { word:'すてき',   reading:'すてき',     meaning:'วิเศษ/เยี่ยม',type:'na',negPresent:'すてきじゃない' },
+    { word:'変',       reading:'へん',       meaning:'แปลก',       type:'na', negPresent:'変じゃない' },
+    { word:'難しい',   reading:'むずかしい', meaning:'ยาก',        type:'i',  negPresent:'難しくない' },
+    { word:'簡単',     reading:'かんたん',   meaning:'ง่าย',       type:'na', negPresent:'簡単じゃない' },
+    { word:'まあまあ', reading:'まあまあ',   meaning:'พอได้',      type:'na', negPresent:'まあまあじゃない' },
+    { word:'嬉しい',   reading:'うれしい',   meaning:'ดีใจ',       type:'i',  negPresent:'嬉しくない' },
+    { word:'悲しい',   reading:'かなしい',   meaning:'เศร้า',      type:'i',  negPresent:'悲しくない' },
+    { word:'厳しい',   reading:'きびしい',   meaning:'เข้มงวด',    type:'i',  negPresent:'厳しくない' },
+    { word:'強い',     reading:'つよい',     meaning:'แข็งแกร่ง',  type:'i',  negPresent:'強くない' },
+  ]
+};
+
+// Keep ADJECTIVES as flat array for backward compat (use day 1 as default)
+const ADJECTIVES = [...ADJECTIVES_BY_DAY[1], ...ADJECTIVES_BY_DAY[2], ...ADJECTIVES_BY_DAY[3]];
 
 // Wrong answer distractors generator
 function genDistractors(adj, correct){
@@ -1241,9 +1244,10 @@ function enterLobby(code){
         pileType2[robberPile2]='gravel';
         const qCount = ROBBER_TYPE[robberType]?.questionCount||1;
         const adjIdx2 = room.adjIndex||0;
-        const adjOrder2 = room.adjOrder||shuffleArray([...Array(ADJECTIVES.length).keys()]);
+        const adjOrder2 = room.adjOrder||shuffleArray([...Array((ADJECTIVES_BY_DAY[room.day||1]||ADJECTIVES_BY_DAY[1]).length).keys()]);
+        const dayAdjs2 = ADJECTIVES_BY_DAY[room.day||1] || ADJECTIVES_BY_DAY[1];
         const qAdjs = [];
-        for(let i=0;i<qCount;i++) qAdjs.push(ADJECTIVES[adjOrder2[(adjIdx2+i)%adjOrder2.length]]);
+        for(let i=0;i<qCount;i++) qAdjs.push(dayAdjs2[adjOrder2[(adjIdx2+i)%adjOrder2.length]]);
         const questionData2 = qAdjs.map(a=>{
           const q=generateQuestion(a);
           return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type},correct:q.correct,choices:q.choices};
@@ -1408,7 +1412,9 @@ window.nightIntroDone = async function(){
   state.round = 1;
 
   // สร้าง adjOrder shuffle ใหม่สำหรับ Day นี้ และ reset index เป็น 0
-  const adjOrder = shuffleArray([...Array(ADJECTIVES.length).keys()]);
+  // ใช้คำศัพท์ของ Day นั้นๆ — shuffle แล้ว save ไป Firebase
+  const dayAdjs = ADJECTIVES_BY_DAY[state.day] || ADJECTIVES_BY_DAY[1];
+  const adjOrder = shuffleArray([...Array(dayAdjs.length).keys()]);
   state.dayQALog = [];
 
   // Determine robber round types for whole day upfront
@@ -1594,8 +1600,9 @@ async function resolveRound(room){
 
   // Generate questions สำหรับรอบปกติ
   const adjIdx = room.adjIndex || 0;
-  const adjOrder = room.adjOrder || shuffleArray([...Array(ADJECTIVES.length).keys()]);
-  const pickedAdj = ADJECTIVES[adjOrder[adjIdx % adjOrder.length]];
+  const adjOrder = room.adjOrder || shuffleArray([...Array((ADJECTIVES_BY_DAY[room.day||1]||ADJECTIVES_BY_DAY[1]).length).keys()]);
+  const dayAdjs = ADJECTIVES_BY_DAY[room.day||1] || ADJECTIVES_BY_DAY[1];
+  const pickedAdj = dayAdjs[adjOrder[adjIdx % adjOrder.length]];
   const q = generateQuestion(pickedAdj);
   const normalQuestionData = [{ adj:{word:pickedAdj.word,reading:pickedAdj.reading,meaning:pickedAdj.meaning,type:pickedAdj.type}, correct:q.correct, choices:q.choices }];
   await update(ref(db,'rooms/'+state.roomCode),{ adjIndex: adjIdx+1, adjOrder });
@@ -1817,10 +1824,10 @@ function renderQuestion(){
 
   // Furigana: show reading above the word — ชิดกัน อ่านง่าย
   const furiganaHTML = `
-    <ruby style="font-family:'Noto Sans JP',sans-serif;font-size:3.5rem;font-weight:900;color:var(--accent-gold);ruby-position:over;display:inline-block;text-align:center">
-      ${qdata.adj.word}
-      <rt style="font-size:1rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.05em;text-align:center;ruby-align:center">${qdata.adj.reading}</rt>
-    </ruby>`;
+    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:3.5rem;font-weight:900;color:var(--accent-gold);line-height:1">${qdata.adj.word}</span>
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.1em">${qdata.adj.reading}</span>
+    </div>`;
 
   const screen = document.getElementById('screen-question');
   screen.innerHTML = `
@@ -1868,7 +1875,11 @@ window.answerQ = function(answer){
   const rt = ROBBER_TYPE[state.currentRobberType] || ROBBER_TYPE.petty;
   const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
   const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
-  const furiganaHTML2 = `<ruby style="font-size:3.5rem;font-weight:900;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif;line-height:1.8;display:inline-block">${qdata.adj.word}<rt style="font-size:1rem;color:var(--accent-gold);font-weight:700;letter-spacing:0">${qdata.adj.reading}</rt></ruby>`;
+  const furiganaHTML2 = `
+    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:3.5rem;font-weight:900;color:var(--accent-gold);line-height:1">${qdata.adj.word}</span>
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.1em">${qdata.adj.reading}</span>
+    </div>`;
 
   const progressDots = Array.from({length:total},(_,i)=>{
     let cls = 'mq-dot';
