@@ -1193,7 +1193,7 @@ function enterLobby(code){
   document.getElementById('lobby-room-code').textContent = code;
   if(state.isHost) document.getElementById('host-controls').style.display = 'block';
 
-  attachRoomListener(code, snap=>{
+  attachRoomListener(code, async snap=>{
     if(!snap.exists()) return;
     const room = snap.val();
     const phase = room.phase;
