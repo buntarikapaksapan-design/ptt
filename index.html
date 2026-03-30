@@ -1265,48 +1265,52 @@ function enterLobby(code){
       const nc = NIGHT_CONFIG[room.day||1];
       const isRobberRound = nc.robberRounds.includes(room.round);
 
-      // รอบโจร + ยังไม่มี emergencyData + Host + ยังไม่เคย push รอบนี้
-      if(state.isHost && isRobberRound && !room.emergencyData && !state._emergencyPushed){
-        state._emergencyPushed = true; // set ทันที ป้องกัน push ซ้ำ
-        const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
-        const pileCount2 = nc.piles;
-        const robberPile2 = Math.ceil(Math.random()*pileCount2);
-        const moneyOddsMap = { petty:0.5, gang:0.25, boss:0.0 };
-        const moneyOdds = moneyOddsMap[robberType] ?? 0.0;
-        const pileType2 = {};
-        for(let i=1;i<=pileCount2;i++) pileType2[i]=(moneyOdds>0&&Math.random()<moneyOdds)?'money':'gravel';
-        pileType2[robberPile2]='gravel';
-        const qCount = ROBBER_TYPE[robberType]?.questionCount||1;
-        const adjIdx2 = room.adjIndex||0;
-        const adjOrder2 = room.adjOrder||shuffleArray([...Array((ADJECTIVES_BY_DAY[room.day||1]||ADJECTIVES_BY_DAY[1]).length).keys()]);
-        const dayAdjs2 = ADJECTIVES_BY_DAY[room.day||1] || ADJECTIVES_BY_DAY[1];
-        const qAdjs = [];
-        for(let i=0;i<qCount;i++) qAdjs.push(dayAdjs2[adjOrder2[(adjIdx2+i)%adjOrder2.length]]);
-        const questionData2 = qAdjs.map(a=>{
-          const q=generateQuestion(a);
-          return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type},correct:q.correct,choices:q.choices};
-        });
-        await update(ref(db,'rooms/'+code),{
-          phase:'emergency',
-          emergencyData:{robberType,robberPile:robberPile2,pileType:pileType2,questionData:questionData2},
-          pileChoices:{},
-          adjIndex: adjIdx2+qCount,
-          adjOrder: adjOrder2,
-          _resolving:false
-        });
+      // room._selectReady = true หมายความว่าผ่าน emergency มาแล้ว พร้อมเลือกกอง
+      // room._selectReady = falsy หมายความว่าเพิ่งเข้า select ครั้งแรก
+      if(isRobberRound && !room._selectReady){
+        // รอบโจร ยังไม่พร้อม → Host push emergency (ครั้งเดียว)
+        if(state.isHost && !state._emergencyPushed){
+          state._emergencyPushed = true;
+          const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
+          const pileCount2 = nc.piles;
+          const robberPile2 = Math.ceil(Math.random()*pileCount2);
+          const moneyOddsMap = { petty:0.5, gang:0.25, boss:0.0 };
+          const moneyOdds = moneyOddsMap[robberType] ?? 0.0;
+          const pileType2 = {};
+          for(let i=1;i<=pileCount2;i++) pileType2[i]=(moneyOdds>0&&Math.random()<moneyOdds)?'money':'gravel';
+          pileType2[robberPile2]='gravel';
+          const qCount = ROBBER_TYPE[robberType]?.questionCount||1;
+          const adjIdx2 = room.adjIndex||0;
+          const adjOrder2 = room.adjOrder||shuffleArray([...Array((ADJECTIVES_BY_DAY[room.day||1]||ADJECTIVES_BY_DAY[1]).length).keys()]);
+          const dayAdjs2 = ADJECTIVES_BY_DAY[room.day||1] || ADJECTIVES_BY_DAY[1];
+          const qAdjs = [];
+          for(let i=0;i<qCount;i++) qAdjs.push(dayAdjs2[adjOrder2[(adjIdx2+i)%adjOrder2.length]]);
+          const questionData2 = qAdjs.map(a=>{
+            const q=generateQuestion(a);
+            return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type},correct:q.correct,choices:q.choices};
+          });
+          await update(ref(db,'rooms/'+code),{
+            phase:'emergency',
+            emergencyData:{robberType,robberPile:robberPile2,pileType:pileType2,questionData:questionData2},
+            pileChoices:{},
+            adjIndex: adjIdx2+qCount,
+            adjOrder: adjOrder2,
+            _resolving:false
+          });
+        }
+        // ยังไม่ ready — ไม่แสดง gameboard
         return;
       }
 
-      // รอบโจร + มี emergencyData แล้ว (กลับมาจาก emergency) หรือรอบปกติ → showGameBoard
-      if(document.getElementById('screen-game').classList.contains('active')){
-        updatePlayersStatus();
-        updateChoiceIndicators(room.pileChoices||{});
-      } else {
+      // _selectReady=true (ผ่าน emergency แล้ว) หรือรอบปกติ → แสดง gameboard
+      if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
+      } else {
+        updatePlayersStatus();
       }
       updateChoiceIndicators(room.pileChoices||{});
-      const activePlayers = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
-      const allChose = activePlayers.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
+      const activePlayers2 = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
+      const allChose = activePlayers2.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
       if(allChose && state.isHost){
         const resolvingRef = ref(db,'rooms/'+code+'/_resolving');
         runTransaction(resolvingRef, current => {
@@ -1319,7 +1323,6 @@ function enterLobby(code){
     }
 
     if(phase === 'emergency'){
-      // แสดง emergency screen ครั้งเดียว — guard ด้วย screen active
       if(!document.getElementById('screen-emergency').classList.contains('active')){
         showEmergency(room.emergencyData);
       }
@@ -1467,7 +1470,9 @@ window.nightIntroDone = async function(){
     pileResults: null,
     windScatter: false,
     adjOrder: adjOrder,
-    adjIndex: 0
+    adjIndex: 0,
+    emergencyData: null,
+    _selectReady: false
   });
   // Single listener จะรับ phase:'select' แล้ว showGameBoard เองอัตโนมัติ
 };
@@ -1728,11 +1733,12 @@ function showEmergency(data){
       if(el) el.textContent = t > 0 ? t : '⚔️';
       if(t <= 0){
         clearInterval(cdInterval);
+        // _selectReady:true บอก select phase ว่าผ่าน emergency แล้ว พร้อมเลือกกอง
         await update(ref(db,'rooms/'+state.roomCode),{
           phase: 'select',
+          _selectReady: true,
           pileChoices: {},
           _resolving: false
-          // emergencyData ยังอยู่ ใช้ตอน resolve
         });
       }
     }, 1000);
@@ -2464,6 +2470,7 @@ window.resultNextRound = async function(){
       answers:{},
       resultData:null,
       emergencyData:null,
+      _selectReady: false,
       _resolving:false,
       _questionResolving:false
     });
