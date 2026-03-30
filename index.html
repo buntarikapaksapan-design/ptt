@@ -1270,9 +1270,10 @@ function enterLobby(code){
       state._questionStarted = false;
       state._hostRevealStarted = false;
       const nc = NIGHT_CONFIG[room.day||1];
+      const isRobberRound = nc.robberRounds.includes(room.round);
 
-      // รอบโจร: emergency ก่อนเลือกกอง — push ทันทีที่เข้า select
-      if(state.isHost && nc.robberRounds.includes(room.round) && !room.emergencyData && !room._resolving){
+      // กรณี 1: รอบโจร ยังไม่มี emergencyData → push emergency ก่อน
+      if(state.isHost && isRobberRound && !room.emergencyData && !room._resolving){
         const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
         const pileCount2 = nc.piles;
         const robberPile2 = Math.ceil(Math.random()*pileCount2);
@@ -1302,18 +1303,13 @@ function enterLobby(code){
         return;
       }
 
-      // ถ้ามี emergencyData แล้ว (กด "ไปเลือกกอง!" มาแล้ว) → แสดง gameboard ให้เลือกกอง
-      // ถ้าไม่มี emergencyData และไม่ใช่รอบโจร → แสดง gameboard ปกติ
-      // *** ห้าม interrupt screen-emergency ที่กำลังแสดงอยู่ ***
-      const isOnEmergencyScreen = document.getElementById('screen-emergency').classList.contains('active');
-      if(!isOnEmergencyScreen){
-        if(document.getElementById('screen-game').classList.contains('active')){
-          updatePlayersStatus();
-          const choices = room.pileChoices || {};
-          updateChoiceIndicators(choices);
-        } else {
-          showGameBoard();
-        }
+      // กรณี 2: ผ่าน emergency มาแล้ว (มี emergencyData) หรือรอบปกติ → แสดง gameboard
+      if(document.getElementById('screen-game').classList.contains('active')){
+        updatePlayersStatus();
+        const choices = room.pileChoices || {};
+        updateChoiceIndicators(choices);
+      } else {
+        showGameBoard();
       }
       const choices = room.pileChoices || {};
       updateChoiceIndicators(choices);
@@ -1735,11 +1731,12 @@ function showEmergency(data){
 
 window.emergencyGoSelect = async function(){
   if(!state.isHost) return;
+  // push select phase — emergencyData ยังคงอยู่เพื่อใช้ตอน resolve
+  // listener จะเห็น emergencyData มีอยู่แล้ว → ข้าม guard → showGameBoard
   await update(ref(db,'rooms/'+state.roomCode),{
     phase: 'select',
     pileChoices: {},
     _resolving: false
-    // emergencyData ยังคงอยู่
   });
 };
 
