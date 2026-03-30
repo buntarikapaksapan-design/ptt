@@ -942,30 +942,25 @@ const ADJECTIVES_BY_DAY = {
 const ADJECTIVES = [...ADJECTIVES_BY_DAY[1], ...ADJECTIVES_BY_DAY[2], ...ADJECTIVES_BY_DAY[3]];
 
 // Wrong answer distractors generator
+// Returns kana strings (for matching), but choiceDisplay() converts to kanji form
 function genDistractors(adj, correct){
   const distractors = [];
+  const r = adj.reading;
+  const rBase = r.endsWith('い') ? r.slice(0,-1) : r;
 
   if(adj.type === 'i'){
-    // ใช้ negPresent เป็นฐานทั้งหมด — ป้องกัน irregular เช่น いい/よい ได้ผล /よじゃない
-    // correct = e.g. "よくない", "大きくない"
-    const base = correct.replace('くない',''); // "よ", "大きく" → no, just strip suffix
-    // ใช้ reading แทนเพื่อสร้าง wrong forms
-    const r = adj.reading; // e.g. "いい" or "おおきい"
-    const rBase = r.endsWith('い') ? r.slice(0,-1) : r; // "おおき"
-
-    distractors.push(rBase + 'じゃない');    // na-adj style (ผิด)
-    distractors.push(rBase + 'くて');        // te-form (ผิดบริบท)
-    distractors.push(r + 'ない');            // ลืมเปลี่ยน い→く
-    distractors.push(correct + 'です');      // เติม polite ผิด
+    distractors.push(rBase + 'じゃない');      // สับสนกับ な-adj (ผิด)
+    distractors.push(r + 'ない');              // ลืมเปลี่ยน い→く (ผิด)
+    distractors.push(rBase + 'くなかった');    // past tense (ผิดบริบท)
+    distractors.push(rBase + 'ないです');      // ผิดรูป
   } else {
     const base = adj.word;
-    distractors.push(base + 'くない');       // สับสนกับ い-adj
-    distractors.push(base + 'ではない');     // formal ยังไม่ได้เรียน
-    distractors.push(base + 'ない');         // ลืมใส่ じゃ
-    distractors.push(base + 'じゃなかった'); // past tense
+    distractors.push(base + 'くない');         // สับสนกับ い-adj (ผิด)
+    distractors.push(base + 'ない');           // ลืมใส่ じゃ (ผิด)
+    distractors.push(base + 'じゃなかった');   // past tense (ผิดบริบท)
+    distractors.push(base + 'くなかった');     // ผิดทั้งรูปและ type
   }
 
-  // Filter ไม่ให้ซ้ำกับ correct และไม่ซ้ำกันเอง
   const seen = new Set([correct]);
   const pool = distractors.filter(d => {
     if(seen.has(d)) return false;
@@ -975,6 +970,50 @@ function genDistractors(adj, correct){
 
   for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
   return pool.slice(0,3);
+}
+
+// Build display form (kanji+suffix) and reading for a choice string
+function buildChoiceDisplay(choiceStr, adj){
+  // choiceStr เป็น kana/mixed — หา suffix แล้วต่อกับ adj.word
+  const word = adj.word;
+  const reading = adj.reading;
+  // suffix คือส่วนที่ต่อจาก reading base
+  const rBase = reading.endsWith('い') ? reading.slice(0,-1) : reading;
+  let suffix = '';
+  let displayWord = word;
+
+  if(choiceStr === adj.negPresent){
+    // correct form — ใช้ negPresent โดยตรง แต่แทน reading base ด้วย word
+    suffix = adj.negPresent.replace(reading,'').replace(rBase,'');
+    // สร้างจาก negPresent แต่แสดงด้วย word
+    const negR = adj.negPresent;
+    if(adj.type === 'i'){
+      const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
+      return { display: wordBase + 'くない', reading: negR };
+    } else {
+      return { display: word + 'じゃない', reading: negR };
+    }
+  }
+
+  // Distractor — ตรวจว่า choiceStr เริ่มต้นด้วย reading base หรือ word
+  const suffixes = ['じゃない','じゃなかった','くない','くなかった','ない','ないです','くて'];
+  for(const suf of suffixes){
+    if(choiceStr.endsWith(suf)){
+      const stem = choiceStr.slice(0, choiceStr.length - suf.length);
+      // ถ้า stem ตรงกับ rBase หรือ reading → แทนด้วย word
+      if(stem === rBase || stem === reading){
+        const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
+        return { display: wordBase + suf, reading: choiceStr };
+      }
+      // ถ้า stem ตรงกับ word → ใช้ word ได้เลย
+      if(stem === word){
+        return { display: word + suf, reading: choiceStr };
+      }
+      // fallback
+      return { display: choiceStr, reading: choiceStr };
+    }
+  }
+  return { display: choiceStr, reading: choiceStr };
 }
 
 // Generate question
@@ -1263,12 +1302,18 @@ function enterLobby(code){
         return;
       }
 
-      if(document.getElementById('screen-game').classList.contains('active')){
-        updatePlayersStatus();
-        const choices = room.pileChoices || {};
-        updateChoiceIndicators(choices);
-      } else {
-        showGameBoard();
+      // ถ้ามี emergencyData แล้ว (กด "ไปเลือกกอง!" มาแล้ว) → แสดง gameboard ให้เลือกกอง
+      // ถ้าไม่มี emergencyData และไม่ใช่รอบโจร → แสดง gameboard ปกติ
+      // *** ห้าม interrupt screen-emergency ที่กำลังแสดงอยู่ ***
+      const isOnEmergencyScreen = document.getElementById('screen-emergency').classList.contains('active');
+      if(!isOnEmergencyScreen){
+        if(document.getElementById('screen-game').classList.contains('active')){
+          updatePlayersStatus();
+          const choices = room.pileChoices || {};
+          updateChoiceIndicators(choices);
+        } else {
+          showGameBoard();
+        }
       }
       const choices = room.pileChoices || {};
       updateChoiceIndicators(choices);
@@ -1277,7 +1322,7 @@ function enterLobby(code){
       if(allChose && state.isHost){
         const resolvingRef = ref(db,'rooms/'+code+'/_resolving');
         runTransaction(resolvingRef, current => {
-          if(current === true) return; // abort — someone else already resolving
+          if(current === true) return;
           return true;
         }).then(result => {
           if(result.committed) resolveRound(room);
@@ -1656,6 +1701,13 @@ function showEmergency(data){
   const taunts = ROBBER_TAUNTS[data.robberType] || ROBBER_TAUNTS.petty;
   const tauntObj = taunts[Math.floor(Math.random()*taunts.length)];
 
+  const qCount = ROBBER_TYPE[data.robberType]?.questionCount || 1;
+  const infoLine = data.robberType==='boss'
+    ? `💀 ผิด: -850,000฿ + ❤️-1 | ถูก: +โบนัส+⚔️ | ${qCount} ข้อ`
+    : data.robberType==='gang'
+    ? `⚠️ ผิด: -530,000฿ + ❤️-0.5 | ถูก: +50,000฿ | ${qCount} ข้อ`
+    : `🦹 ผิด: -303,000฿ + ❤️-0.5 | ถูก: รอด! | ${qCount} ข้อ`;
+
   const screen = document.getElementById('screen-emergency');
   screen.innerHTML = `
     <div class="emergency-panel slide-up">
@@ -1668,38 +1720,28 @@ function showEmergency(data){
         <div style="font-size:0.9rem;color:#ffbbbb;font-weight:600">${tauntObj.th}</div>
       </div>
 
-      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px">
-        ${data.robberType==='boss'
-          ?'💀 ผิด: เสียเงิน 850,000฿ + หัวใจ -1 | ถูก: +โบนัส + ⚔️อาวุธ<br>⚠️ 5 ข้อ + โอกาสเจอเงินเหลือ 0%'
-          :data.robberType==='gang'
-          ?'⚠️ ผิด: เสียเงิน 530,000฿ + หัวใจ -0.5 | ถูก: +50,000฿<br>⚠️ 4 ข้อ + โอกาสเจอเงินลดลง 75%'
-          :'🦹 ผิด: เสียเงิน 303,000฿ + หัวใจ -0.5 | ถูก: รอด!<br>⚠️ 1 ข้อ + โอกาสเจอเงินลดลง 50%'}
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:20px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;text-align:center">
+        ${infoLine}
       </div>
 
-      <div id="emg-countdown" style="font-size:2.5rem;font-weight:900;color:var(--accent-red);margin:8px 0">4</div>
-      <div style="color:var(--text-dim);font-size:0.85rem">กำลังไปเลือกกอง...</div>
+      ${state.isHost
+        ? `<button class="btn btn-red" style="width:100%;font-size:1.1rem;padding:14px" onclick="emergencyGoSelect()">ไปเลือกกอง! →</button>`
+        : `<div style="color:var(--text-dim);font-size:0.9rem;text-align:center">⏳ รอ Host นำไปเลือกกอง...</div>`
+      }
     </div>
   `;
   showScreen('screen-emergency');
-
-  // Auto countdown → go to select after 4s (Host only)
-  if(state.isHost){
-    let t = 4;
-    const cdInterval = setInterval(async()=>{
-      t--;
-      const el = document.getElementById('emg-countdown');
-      if(el) el.textContent = t > 0 ? t : '🏃';
-      if(t <= 0){
-        clearInterval(cdInterval);
-        await update(ref(db,'rooms/'+state.roomCode),{
-          phase: 'select',
-          pileChoices: {},
-          _resolving: false
-        });
-      }
-    }, 1000);
-  }
 }
+
+window.emergencyGoSelect = async function(){
+  if(!state.isHost) return;
+  await update(ref(db,'rooms/'+state.roomCode),{
+    phase: 'select',
+    pileChoices: {},
+    _resolving: false
+    // emergencyData ยังคงอยู่
+  });
+};
 
 // Helper: wrap Japanese text with furigana if reading available
 function withFurigana(word, reading){
@@ -1813,10 +1855,10 @@ function renderQuestion(){
   }
 
   const choicesHTML = qdata.choices.map(c=>{
-    const cReading = choiceReading(c, qdata.adj);
+    const { display, reading: cReading } = buildChoiceDisplay(c, qdata.adj);
     return `
       <button class="choice-btn" onclick="answerQ('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-        <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${c}</span>
+        <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${display}</span>
         <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.8rem;color:var(--accent-gold);opacity:0.8;margin-left:4px">（${cReading}）</span>
       </button>
     `;
@@ -1891,28 +1933,9 @@ window.answerQ = function(answer){
   // Lock choices — no color reveal yet
   const choicesHTML = qdata.choices.map(c=>{
     const isChosen = c === answer;
-    const cReading = (() => {
-      const r = qdata.adj.reading || '';
-      const adj = qdata.adj;
-      if(adj.type === 'na'){
-        if(c.endsWith('じゃない')) return r+'じゃない';
-        if(c.endsWith('ではない')) return r+'ではない';
-        if(c.endsWith('くない')) return r+'くない';
-        if(c.endsWith('ない')) return r+'ない';
-        if(c.endsWith('じゃなかった')) return r+'じゃなかった';
-        return r;
-      } else {
-        const base = r.endsWith('い') ? r.slice(0,-1) : r;
-        if(c.endsWith('くない')) return base+'くない';
-        if(c.endsWith('くて')) return base+'くて';
-        if(c.endsWith('じゃない')) return base+'じゃない';
-        if(c.endsWith('いない')) return base+'いない';
-        if(c.endsWith('ない')) return r+'ない';
-        return r;
-      }
-    })();
+    const { display, reading: cReading } = buildChoiceDisplay(c, qdata.adj);
     return `<button class="choice-btn${isChosen?' selected':''}" disabled style="${isChosen?'border-color:var(--accent-blue);background:rgba(74,158,255,0.12)':''}">
-      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${c}</span>
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${display}</span>
       <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.8rem;color:var(--accent-gold);opacity:0.8;margin-left:4px">（${cReading}）</span>
     </button>`;
   }).join('');
@@ -1969,27 +1992,13 @@ function showReveal(revealData){
   const revealRows = myAnswers.map((a,i)=>{
     const icon = a.correct ? '✅' : '❌';
     const adj = state.currentQuestions[i]?.adj || {};
-    const reading = adj.reading || '';
-    const furigana = `<ruby style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold)">${a.word}<rt style="font-size:0.65em;font-weight:400;color:var(--text-dim)">${reading}</rt></ruby>`;
-    // correct answer with reading
-    const base = reading.endsWith('い') ? reading.slice(0,-1) : reading;
-    const correctReading = (() => {
-      const c = a.correct_ans;
-      if(adj.type==='na'){
-        if(c.endsWith('じゃない')) return reading+'じゃない';
-        if(c.endsWith('ではない')) return reading+'ではない';
-        return reading;
-      } else {
-        if(c.endsWith('くない')) return base+'くない';
-        if(c.endsWith('じゃない')) return base+'じゃない';
-        return reading;
-      }
-    })();
-    const correctFuri = `<ruby style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold)">${a.correct_ans}<rt style="font-size:0.65em;font-weight:400;color:var(--text-dim)">${correctReading}</rt></ruby>`;
+    const { display: correctDisplay, reading: correctReading } = buildChoiceDisplay(a.correct_ans, adj);
+    const wordFuri = `<span style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold);font-size:1.1rem">${adj.word||a.word}</span><span style="font-family:'Noto Sans JP',sans-serif;font-size:0.75rem;color:var(--accent-gold);opacity:0.75;margin-left:3px">（${adj.reading||''}）</span>`;
+    const correctFuri = `<span style="font-family:'Noto Sans JP',sans-serif;font-weight:700;color:var(--accent-gold);font-size:1.1rem">${correctDisplay}</span><span style="font-family:'Noto Sans JP',sans-serif;font-size:0.75rem;color:var(--accent-gold);opacity:0.75;margin-left:3px">（${correctReading}）</span>`;
     return `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${a.correct?'rgba(80,200,120,0.08)':'rgba(232,69,69,0.08)'};border-radius:8px;border-left:3px solid ${a.correct?'var(--accent-green)':'var(--accent-red)'}">
-        <span style="font-size:1.2rem">${icon}</span>
-        <span style="flex:1">${furigana}</span>
+      <div style="display:grid;grid-template-columns:1.8rem 1fr 1fr;align-items:center;gap:8px;padding:10px 12px;background:${a.correct?'rgba(80,200,120,0.08)':'rgba(232,69,69,0.08)'};border-radius:8px;border-left:3px solid ${a.correct?'var(--accent-green)':'var(--accent-red)'}">
+        <span style="font-size:1.1rem;text-align:center">${icon}</span>
+        <span>${wordFuri}</span>
         <span>${correctFuri}</span>
       </div>`;
   }).join('');
@@ -2335,12 +2344,38 @@ function showResult(resultData, pileResults, pileChoices){
 
     // สมการเงิน
     if(o === 'robber_lost'){
+      const rt2 = ROBBER_TYPE[myData.robberType] || ROBBER_TYPE.petty;
+      const robberKey = myData.robberType || 'petty';
+      const gloatPool = {
+        petty:['🦹 "ฮ่าๆๆ! ผันผิดเฉยเลย! เงิน 303,000฿ เป็นของข้าแล้ว~"','🦹 "อ่อนแอเกินไป! ขอบคุณสำหรับเงินนะ~"','🦹 "ง่ายเกินไปเลย! กลับไปเรียนใหม่ซะ!"'],
+        gang:['🦹🦹 "พวกเราชนะ!! 530,000฿ หมดเกลี้ยง!!"','🦹🦹 "4 ข้อยังตอบไม่ได้ กลับไปเรียนใหม่เหอะ!"','🦹🦹 "มาเป็นทีมก็สู้ไม่ได้! ขอบคุณ~"'],
+        boss:['🦹‍♂️ "หัวหน้าโจรมาเองแล้ว แพ้แน่นอน! 850,000฿ + หัวใจ เอาไปหมด!"','🦹‍♂️ "ขี้แพ้สิ้นดี! ข้าจะกลับมาอีกแน่!"','🦹‍♂️ "ทั้งเงินทั้งหัวใจ ข้าเอาหมด! ฮ่าฮ่า~"']
+      };
+      const gloat = (gloatPool[robberKey]||gloatPool.petty)[Math.floor(Math.random()*(gloatPool[robberKey]||gloatPool.petty).length)];
+      rows += `
+        <div style="background:rgba(232,69,69,0.12);border:1px solid rgba(232,69,69,0.35);border-radius:12px;padding:12px 14px;margin-bottom:10px;text-align:center">
+          <div style="font-size:2rem;margin-bottom:4px">${rt2.emoji}</div>
+          <div style="font-family:'Noto Sans JP',sans-serif;font-size:0.95rem;font-weight:700;color:#ff8080;line-height:1.5">${gloat}</div>
+        </div>`;
       const medical = myData.robberType==='boss'?50000:myData.robberType==='gang'?30000:3000;
       const stolen = myData.lossOnFail - medical;
       rows += `<div class="result-row" style="background:rgba(232,69,69,0.1);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💸 เงินถูกขโมย</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
       rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">🏥 ค่ารักษาบาดเจ็บ</span><span class="value loss">-${medical.toLocaleString()} ฿</span></div>`;
       rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💔 หัวใจที่เสีย</span><span class="value loss">${myData.heartChange} ดวง</span></div>`;
     } else if(o === 'robber_won'){
+      const rt2 = ROBBER_TYPE[myData.robberType] || ROBBER_TYPE.petty;
+      const robberKey = myData.robberType || 'petty';
+      const regretPool = {
+        petty:['🦹 "ชิ! ตอบถูกเฉยเลย! ข้าหนีก่อนดีกว่า!"','🦹 "ไม่จริง! เก่งไปป่ะ! ครั้งหน้าจะไม่รอดแน่!"','🦹 "คราวนี้รอด แต่ครั้งหน้าข้าจะมาอีก!"'],
+        gang:['🦹🦹 "ถอย! ถอย! คนนี้เก่งเกินไป!"','🦹🦹 "เป็นไปไม่ได้! 4 ข้อตอบถูกหมด!?"','🦹🦹 "ครั้งนี้มึงรอด แต่ครั้งหน้าจะเอาโจรมาเพิ่มอีก!"'],
+        boss:['🦹‍♂️ "เป็นไปไม่ได้... หัวหน้าโจรอย่างข้า...แพ้!?"','🦹‍♂️ "ข้าจะกลับมาแก้แค้น จำไว้ให้ดี!!"','🦹‍♂️ "5 ข้อถูกหมด!? มนุษย์คนนี้ไม่ธรรมดา!!"']
+      };
+      const regret = (regretPool[robberKey]||regretPool.petty)[Math.floor(Math.random()*(regretPool[robberKey]||regretPool.petty).length)];
+      rows += `
+        <div style="background:rgba(80,200,120,0.08);border:1px solid rgba(80,200,120,0.3);border-radius:12px;padding:12px 14px;margin-bottom:10px;text-align:center">
+          <div style="font-size:2rem;margin-bottom:4px">${rt2.emoji}</div>
+          <div style="font-family:'Noto Sans JP',sans-serif;font-size:0.95rem;font-weight:700;color:var(--accent-green);line-height:1.5">${regret}</div>
+        </div>`;
       rows += `<div class="result-row"><span class="label">🛡️ รักษาเงินไว้ได้</span><span class="value gain">ปลอดภัย!</span></div>`;
       if(mc > 0) rows += `<div class="result-row"><span class="label">🎁 โบนัสสู้ชนะ</span><span class="value gain">+${mc.toLocaleString()} ฿</span></div>`;
       if(myData.weaponChange > 0) rows += `<div class="result-row"><span class="label">⚔️ ได้รับอาวุธ</span><span class="value gain">+${myData.weaponChange} ชิ้น</span></div>`;
@@ -2432,6 +2467,7 @@ window.resultNextRound = async function(){
       pileResults:null,
       answers:{},
       resultData:null,
+      emergencyData:null,
       _resolving:false,
       _questionResolving:false
     });
