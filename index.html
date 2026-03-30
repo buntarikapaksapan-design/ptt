@@ -407,7 +407,10 @@
     padding: 20px;
     margin-bottom: 20px;
     text-align: center;
+    line-height: 2.2;
   }
+  ruby { ruby-align: center; display: inline-block; }
+  rt { ruby-position: over; text-align: center; letter-spacing: 0; }
   .q-prompt { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px; }
   .q-word {
     font-size: 2.2rem;
@@ -1814,10 +1817,10 @@ function renderQuestion(){
 
   // Furigana: show reading above the word — ชิดกัน อ่านง่าย
   const furiganaHTML = `
-    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:0">
-      <span style="font-size:1.1rem;color:var(--accent-gold);font-weight:700;font-family:'Noto Sans JP',sans-serif;letter-spacing:0.15em">${qdata.adj.reading}</span>
-      <span style="font-size:3.5rem;font-weight:900;color:var(--accent-gold);font-family:'Noto Sans JP',sans-serif;line-height:1">${qdata.adj.word}</span>
-    </div>`;
+    <ruby style="font-family:'Noto Sans JP',sans-serif;font-size:3.5rem;font-weight:900;color:var(--accent-gold);ruby-position:over;display:inline-block;text-align:center">
+      ${qdata.adj.word}
+      <rt style="font-size:1rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.05em;text-align:center;ruby-align:center">${qdata.adj.reading}</rt>
+    </ruby>`;
 
   const screen = document.getElementById('screen-question');
   screen.innerHTML = `
