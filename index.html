@@ -2229,11 +2229,13 @@ async function resolveRobberRound(room){
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
     } else if(pr.hitRobber){
       const ans = answers[pid];
-      const allCorrect = ans?.allCorrect || false;
       // Firebase แปลง array → object {0:{...},1:{...}} ต้องใช้ Object.values()
       const rawAnswers = ans?.answers || {};
       const answerList = Array.isArray(rawAnswers) ? rawAnswers : Object.values(rawAnswers);
       correctCount = answerList.filter(a=>a && a.correct).length;
+      // คำนวณ allCorrect จาก answerList จริงๆ ไม่ trust Firebase boolean
+      const totalQ = answerList.length;
+      const allCorrect = totalQ > 0 && correctCount === totalQ;
       const currentWeapons = p.weapons || 0;
 
       if(robberType === 'boss'){
