@@ -2204,6 +2204,7 @@ async function resolveRobberRound(room){
     let weaponChange = 0;
     let outcome = '';
     let useWeapon = false;
+    let correctCount = 0; // declare ที่นี่เพื่อให้ใช้ได้ใน perPlayer
 
     if(pr.type === 'money'){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
@@ -2212,7 +2213,7 @@ async function resolveRobberRound(room){
       const ans = answers[pid];
       const allCorrect = ans?.allCorrect || false;
       const answerList = ans?.answers || [];
-      const correctCount = answerList.filter(a=>a.correct).length;
+      correctCount = answerList.filter(a=>a.correct).length; // assign ไม่ใช่ declare
       const currentWeapons = p.weapons || 0;
 
       if(robberType === 'boss'){
