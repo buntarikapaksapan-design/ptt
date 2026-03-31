@@ -2027,7 +2027,7 @@ function showReveal(revealData){
 
   const randMsg = (arr) => arr[Math.floor(Math.random()*arr.length)];
   const allCorrect = myAnswers.every(a=>a.correct);
-  const isRobberQ = state.currentRobberType && state.currentRobberType !== 'normal';
+  const isRobberQ = state.currentRobberType !== 'normal' && state.currentRobberType !== null && state.currentRobberType !== undefined;
 
   let msgObj;
   if(isRobberQ){
