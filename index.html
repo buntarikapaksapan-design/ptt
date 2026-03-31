@@ -982,10 +982,12 @@ function genDistractors(adj, correct){
 }
 
 // Build display (kanji+suffix) and kana reading for a choice string
-// choiceStr เป็น kana ล้วน เช่น "やすくないです", "あんぜんじゃないです"
 function buildChoiceDisplay(choiceStr, adj){
-  const word = adj.word;
-  const reading = adj.reading;
+  // Guard: ถ้า choiceStr หรือ adj เป็น undefined/null ให้ return fallback
+  if(!choiceStr || !adj) return { display: choiceStr||'', reading: choiceStr||'' };
+
+  const word = adj.word || '';
+  const reading = adj.reading || '';
   const rBase = reading.endsWith('い') ? reading.slice(0,-1) : reading;
   const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
 
@@ -993,13 +995,20 @@ function buildChoiceDisplay(choiceStr, adj){
   const hasDes = choiceStr.endsWith('です');
   const base = hasDes ? choiceStr.slice(0,-2) : choiceStr;
   const des = hasDes ? 'です' : '';
-
-  // *** reading ที่แสดงในวงเล็บ = choiceStr ทั้งหมด (kana ล้วน เช่น やすくないです) ***
   const kanaReading = choiceStr;
 
-  // correct negPresent (base == negPresent ซึ่งเป็น kana-based หรือ kanji-based)
-  // ตรวจทั้ง exact match และ kana match
-  const negP = adj.negPresent;
+  // correct form — ตรวจจาก kana correct (rBase+くない หรือ reading+じゃない)
+  const kanaCorrect = adj.type==='i' ? rBase+'くない' : reading+'じゃない';
+  if(base === kanaCorrect){
+    if(adj.type === 'i'){
+      return { display: wordBase + 'くない' + des, reading: kanaReading };
+    } else {
+      return { display: word + 'じゃない' + des, reading: kanaReading };
+    }
+  }
+
+  // fallback: ตรวจ negPresent ด้วย (กรณีข้อมูลเก่าจาก Firebase มี kanji)
+  const negP = adj.negPresent || '';
   const negPBase = negP.endsWith('です') ? negP.slice(0,-2) : negP;
   if(base === negPBase || base === negP){
     if(adj.type === 'i'){
@@ -1009,17 +1018,15 @@ function buildChoiceDisplay(choiceStr, adj){
     }
   }
 
-  // distractor — หา suffix แล้วแทน stem kana ด้วย kanji
+  // distractor
   const suffixes = ['じゃなかった','くなかった','じゃない','くない','ない','くて'];
   for(const suf of suffixes){
     if(base.endsWith(suf)){
       const stem = base.slice(0, base.length - suf.length);
-      if(stem === rBase || stem === reading){
-        // stem เป็น kana base → แสดงเป็น kanji base
+      if(stem === rBase || stem === reading || stem === word || stem === wordBase){
         const displayStem = (adj.type==='i') ? wordBase : word;
         return { display: displayStem + suf + des, reading: kanaReading };
       }
-      // fallback: แสดง kana ล้วน + des
       return { display: base + des, reading: kanaReading };
     }
   }
@@ -1028,20 +1035,21 @@ function buildChoiceDisplay(choiceStr, adj){
 
 // Generate question — correct = negPresent+です, distractors = kana+です
 function generateQuestion(adj){
-  // negPresent อาจมี kanji เช่น 大きくない → เราต้องการ kana สำหรับ matching
-  // ใช้ reading เพื่อสร้าง correct kana form
   const r = adj.reading;
   const rBase = r.endsWith('い') ? r.slice(0,-1) : r;
   const kanaCorrect = adj.type==='i' ? rBase+'くない' : r+'じゃない';
 
   const correct = kanaCorrect + 'です';
   const distractors = genDistractors(adj, kanaCorrect);
-  // เติม です — แต่ถ้า distractor ลงท้าย ないです ให้ไม่เติมซ้ำ
-  const wrong = distractors.map(d => {
-    if(d.endsWith('です')) return d; // มี です อยู่แล้ว
-    return d + 'です';
-  });
-  const choices = [correct, ...wrong];
+  const wrong = distractors
+    .filter(d => d != null)
+    .map(d => d.endsWith('です') ? d : d + 'です');
+
+  // ถ้า distractors ไม่ครบ 3 ให้เติม fallback
+  const fallbacks = ['—','——','———'].map((_,i)=> kanaCorrect + (i===0?'か':'の') + 'です');
+  while(wrong.length < 3) wrong.push(fallbacks[wrong.length]);
+
+  const choices = [correct, ...wrong].filter(Boolean);
   for(let i=choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}
   return { adj, correct, choices };
 }
