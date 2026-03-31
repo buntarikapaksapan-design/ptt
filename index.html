@@ -2025,14 +2025,16 @@ function showReveal(revealData){
   const myAnswers = state.qAnswers;
   if(!myAnswers || myAnswers.length === 0) return;
 
+  console.log('showReveal: currentRobberType =', state.currentRobberType, '| isRobberQ =', state.currentRobberType !== 'normal' && state.currentRobberType !== null && state.currentRobberType !== undefined);
+
   const randMsg = (arr) => arr[Math.floor(Math.random()*arr.length)];
   const allCorrect = myAnswers.every(a=>a.correct);
-  const isRobberQ = state.currentRobberType !== 'normal' && state.currentRobberType !== null && state.currentRobberType !== undefined;
+  const robberTypeFromData = revealData.robberType; // null = รอบปกติ, 'petty/gang/boss' = รอบโจร
+  const isRobberQ = robberTypeFromData != null;
 
   let msgObj;
   if(isRobberQ){
-    // รอบโจร — ใช้คำพูดโจร
-    const robberKey = state.currentRobberType || 'petty';
+    const robberKey = robberTypeFromData;
     const rt2 = ROBBER_TYPE[robberKey] || ROBBER_TYPE.petty;
     if(allCorrect){
       const wonPool = {
@@ -2194,7 +2196,7 @@ async function waitAndReveal(){
       Object.entries(answers).forEach(([pid,a])=>{ allAnswers[pid]={allCorrect:a.allCorrect}; });
       await update(ref(db,'rooms/'+state.roomCode),{
         phase:'reveal',
-        revealData:{ allAnswers },
+        revealData:{ allAnswers, robberType: room.emergencyData?.robberType || null },
         _resolving: false
       });
       setTimeout(async()=>{
