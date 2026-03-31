@@ -1262,13 +1262,12 @@ function enterLobby(code){
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
+      state._emergencyPushed = false;
       const nc = NIGHT_CONFIG[room.day||1];
       const isRobberRound = nc.robberRounds.includes(room.round);
 
-      // room._selectReady = true หมายความว่าผ่าน emergency มาแล้ว พร้อมเลือกกอง
-      // room._selectReady = falsy หมายความว่าเพิ่งเข้า select ครั้งแรก
-      if(isRobberRound && !room._selectReady){
-        // รอบโจร ยังไม่พร้อม → Host push emergency (ครั้งเดียว)
+      if(isRobberRound){
+        // รอบโจร → Host push emergency ทันที (ครั้งเดียว ด้วย local flag)
         if(state.isHost && !state._emergencyPushed){
           state._emergencyPushed = true;
           const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
@@ -1298,27 +1297,40 @@ function enterLobby(code){
             _resolving:false
           });
         }
-        // ยังไม่ ready — ไม่แสดง gameboard
-        return;
+        return; // รอ emergency phase — ไม่ทำอะไรเพิ่ม
       }
 
-      // _selectReady=true (ผ่าน emergency แล้ว) หรือรอบปกติ → แสดง gameboard
+      // รอบปกติ → แสดง gameboard
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
       } else {
         updatePlayersStatus();
+        updateChoiceIndicators(room.pileChoices||{});
       }
-      updateChoiceIndicators(room.pileChoices||{});
-      const activePlayers2 = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
-      const allChose = activePlayers2.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
-      if(allChose && state.isHost){
-        const resolvingRef = ref(db,'rooms/'+code+'/_resolving');
-        runTransaction(resolvingRef, current => {
-          if(current === true) return;
-          return true;
-        }).then(result => {
-          if(result.committed) resolveRound(room);
-        });
+      // ตรวจว่าเลือกครบ
+      const actNormal = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
+      const allChoseNormal = actNormal.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
+      if(allChoseNormal && state.isHost){
+        runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
+          if(cur===true) return; return true;
+        }).then(r=>{ if(r.committed) resolveRound(room); });
+      }
+    }
+
+    if(phase === 'pile-select'){
+      // หลัง emergency countdown จบ → เลือกกองได้
+      if(!document.getElementById('screen-game').classList.contains('active')){
+        showGameBoard();
+      } else {
+        updatePlayersStatus();
+        updateChoiceIndicators(room.pileChoices||{});
+      }
+      const actRobber = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
+      const allChoseRobber = actRobber.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
+      if(allChoseRobber && state.isHost){
+        runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
+          if(cur===true) return; return true;
+        }).then(r=>{ if(r.committed) resolveRound(room); });
       }
     }
 
@@ -1735,8 +1747,7 @@ function showEmergency(data){
         clearInterval(cdInterval);
         // _selectReady:true บอก select phase ว่าผ่าน emergency แล้ว พร้อมเลือกกอง
         await update(ref(db,'rooms/'+state.roomCode),{
-          phase: 'select',
-          _selectReady: true,
+          phase: 'pile-select',
           pileChoices: {},
           _resolving: false
         });
