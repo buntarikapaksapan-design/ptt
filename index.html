@@ -1829,21 +1829,8 @@ function startQuestion(questionData, robberType){
   state.currentRobberType = robberType || 'normal';
 
   const isRobber = robberType && robberType !== 'normal';
-  if(!isRobber){
-    const taunt = GRAVEL_TAUNTS_PRE[Math.floor(Math.random()*GRAVEL_TAUNTS_PRE.length)];
-    document.getElementById('screen-question').innerHTML = `
-      <div class="panel question-panel slide-up" style="text-align:center;padding:32px 24px">
-        <div style="font-size:3.5rem;margin-bottom:12px">🪨</div>
-        <div style="font-size:1.3rem;font-weight:900;color:var(--accent-gold);line-height:1.5;margin-bottom:16px;white-space:pre-line">${taunt}</div>
-        <div style="color:var(--text-dim);font-size:0.9rem;margin-bottom:24px">ผันปฏิเสธปัจจุบันให้ถูกต้องนะคะ!</div>
-        <button class="btn btn-gold" style="width:100%;font-size:1.1rem;padding:14px" onclick="startActualQuestion()">สู้เลย! →</button>
-      </div>
-    `;
-    showScreen('screen-question');
-  } else {
-    renderQuestion();
-    showScreen('screen-question');
-  }
+  renderQuestion();
+  showScreen('screen-question');
 }
 
 window.startActualQuestion = function(){
