@@ -1370,7 +1370,7 @@ function enterLobby(code){
       const pr = room.pileResults || {};
       const myResult = pr[pid] || {};
       const qData = room.questionData || room.emergencyData?.questionData;
-      const robberType = room.emergencyData?.robberType || 'petty';
+      const robberType = room.emergencyData?.robberType || null;
 
       if(!state._questionStarted){
         state._questionStarted = true;
