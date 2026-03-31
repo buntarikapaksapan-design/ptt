@@ -986,7 +986,6 @@ function genDistractors(adj, kanaCorrect){
 
 // Build display (kanji+suffix) and kana reading for a choice string
 function buildChoiceDisplay(choiceStr, adj){
-  // Guard: ถ้า choiceStr หรือ adj เป็น undefined/null ให้ return fallback
   if(!choiceStr || !adj) return { display: choiceStr||'', reading: choiceStr||'' };
 
   const word = adj.word || '';
@@ -994,46 +993,42 @@ function buildChoiceDisplay(choiceStr, adj){
   const rBase = reading.endsWith('い') ? reading.slice(0,-1) : reading;
   const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
 
-  // strip です ออกก่อน — ป้องกัน ないですです
   const hasDes = choiceStr.endsWith('です');
   const base = hasDes ? choiceStr.slice(0,-2) : choiceStr;
   const des = hasDes ? 'です' : '';
-  const kanaReading = choiceStr;
+  const kanaReading = choiceStr; // วงเล็บใช้ kana ล้วนเสมอ
 
-  // correct form — ตรวจจาก kana correct (rBase+くない หรือ reading+じゃない)
+  // เลือก display stem สำหรับ kanji
+  const kanjiStem = (adj.type==='i') ? wordBase : word;
+
+  // correct form
   const kanaCorrect = adj.type==='i' ? rBase+'くない' : reading+'じゃない';
   if(base === kanaCorrect){
-    if(adj.type === 'i'){
-      return { display: wordBase + 'くない' + des, reading: kanaReading };
-    } else {
-      return { display: word + 'じゃない' + des, reading: kanaReading };
-    }
+    return { display: kanjiStem + (adj.type==='i' ? 'くない' : 'じゃない') + des, reading: kanaReading };
   }
 
-  // fallback: ตรวจ negPresent ด้วย (กรณีข้อมูลเก่าจาก Firebase มี kanji)
+  // negPresent fallback (ข้อมูลเก่าจาก Firebase)
   const negP = adj.negPresent || '';
   const negPBase = negP.endsWith('です') ? negP.slice(0,-2) : negP;
   if(base === negPBase || base === negP){
-    if(adj.type === 'i'){
-      return { display: wordBase + 'くない' + des, reading: kanaReading };
-    } else {
-      return { display: word + 'じゃない' + des, reading: kanaReading };
-    }
+    return { display: kanjiStem + (adj.type==='i' ? 'くない' : 'じゃない') + des, reading: kanaReading };
   }
 
-  // distractor
+  // distractor — แทน stem kana ด้วย kanji เสมอ
   const suffixes = ['じゃなかった','くなかった','じゃない','くない','ない','くて'];
   for(const suf of suffixes){
     if(base.endsWith(suf)){
       const stem = base.slice(0, base.length - suf.length);
-      if(stem === rBase || stem === reading || stem === word || stem === wordBase){
-        const displayStem = (adj.type==='i') ? wordBase : word;
-        return { display: displayStem + suf + des, reading: kanaReading };
+      if(stem === rBase || stem === reading || stem === word || stem === wordBase || stem === ''){
+        // stem match → แสดงคันจิ
+        return { display: kanjiStem + suf + des, reading: kanaReading };
       }
-      return { display: base + des, reading: kanaReading };
+      // stem ไม่ match — ยังคงแสดงคันจิ base + suffix
+      return { display: kanjiStem + suf + des, reading: kanaReading };
     }
   }
-  return { display: choiceStr, reading: kanaReading };
+  // final fallback: ยังคงใช้คันจิ
+  return { display: kanjiStem + base.slice(rBase.length || reading.length) + des || choiceStr, reading: kanaReading };
 }
 
 // Generate question — correct = kana negPresent + です
@@ -1654,10 +1649,13 @@ async function resolveRound(room){
     const newPileResults = {};
     activePlayers.forEach(([pid,p])=>{
       const chosen = pileChoices[pid];
-      const type = ed.pileType[chosen] || 'gravel';
-      const hitRobber = chosen === ed.robberPile;
+      // Firebase เก็บ key เป็น string — ต้อง coerce ทั้งคู่ให้ตรงกัน
+      const chosenStr = String(chosen);
+      const robberPileStr = String(ed.robberPile);
+      const type = ed.pileType?.[chosenStr] || ed.pileType?.[chosen] || 'gravel';
+      const hitRobber = chosenStr === robberPileStr;
       const needsQuestion = (type === 'gravel') || hitRobber;
-      newPileResults[pid] = { pile:chosen, type, hitRobber: hitRobber||false, needsQuestion };
+      newPileResults[pid] = { pile:chosen, type, hitRobber, needsQuestion };
     });
     await update(ref(db,'rooms/'+state.roomCode),{
       phase: 'question',
@@ -2306,38 +2304,49 @@ async function resolveRobberRound(room){
     });
   });
 
-  // ข้อ 5: ถ้ามีคนโดนโจร (robber_lost) → ไปหน้า robber_taunt ก่อน แล้วค่อย result
+  // ถ้ามีคนโดนโจร (robber_lost) → robber_taunt (โจรยั่วยุ)
+  // ถ้ามีคนชนะโจร (robber_won) → robber_won_taunt (โจรเสียใจ)
   const anyRobberLost = Object.values(perPlayer).some(pd=>pd.outcome==='robber_lost');
+  const anyRobberWon  = Object.values(perPlayer).some(pd=>pd.outcome==='robber_won');
 
   if(isRobberRound && anyRobberLost){
     const robberVictoryTaunts = {
-      petty:['🦹 "ฮ่าๆๆๆ! ข้าชนะแล้ว! เอาเงินไปด้วยนะ!"','🦹 "ฝีมือแค่นี้เอง? น่าเสียดายจัง!"'],
-      gang:['🦹🦹 "พวกเราชนะ!! เงินกูหมด! ขอบคุณมากนะ~"','🦹🦹 "สี่ข้อก็สู้พวกเราไม่ได้! ล้มเหลวมาก!"'],
-      boss:['🦹‍♂️ "บอสชนะอีกครั้ง! คนนี้อ่อนแอมากๆ!"','🦹‍♂️ "ฮ่าฮ่าฮ่า! เงินหมด หัวใจหายด้วย! ขอบคุณ~"']
+      petty:['🦹 "ฮ่าๆๆๆ! ข้าชนะแล้ว! เอาเงินไปด้วยนะ!"','🦹 "ผันผิดเลยนะ? น่าเสียดายจัง ขอบคุณเงินด้วย~"'],
+      gang:['🦹🦹 "ถูกไม่ถึง 2 ข้อ!! พวกเราชนะ!! 400,000฿ เป็นของเรา!"','🦹🦹 "อ่อนแอมาก! ตอบไม่ถึงครึ่ง ขอบคุณเงิน~"'],
+      boss:['🦹‍♂️ "ตอบผิดแม้แต่ข้อเดียว ก็พอแล้ว! 1,000,000฿ + หัวใจ เอาไปหมด!"','🦹‍♂️ "หัวหน้าโจรอย่างข้า ไม่มีทางแพ้! ขอบคุณล้านนึงนะ~"']
     };
     const taunts = robberVictoryTaunts[robberType] || robberVictoryTaunts.petty;
     const taunt = taunts[Math.floor(Math.random()*taunts.length)];
-
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'robber_taunt',
-      robberTauntData:{ taunt, robberType },
+      robberTauntData:{ taunt, robberType, won: false },
       resultData:{ perPlayer, isRobberRound, robberType },
-      qaLogRound: qaLog,
-      _resolving: false,
-      _questionResolving: false
+      qaLogRound: qaLog, _resolving:false, _questionResolving:false
+    });
+  } else if(isRobberRound && anyRobberWon){
+    const robberDefeatTaunts = {
+      petty:['🦹 "ชิ! ผันถูกเฉยเลย! ข้าหนีก่อนดีกว่า!"','🦹 "ไม่จริง! เก่งไปหน่อย ครั้งหน้าข้าจะมาอีก!"'],
+      gang:['🦹🦹 "ถอย! ถอย! ตอบถูกเกิน 2 ข้อได้ยังไง! แย่จัง!"','🦹🦹 "เสีย 400,000฿ เพราะถูกเกินครึ่ง!! ครั้งหน้าจะตั้ง 8 ข้อ!"'],
+      boss:['🦹‍♂️ "ไม่ได้เรื่อง!! ตอบถูกครบ 5 ข้อได้ยังไง!? ข้าจะกลับมา!!"','🦹‍♂️ "เสีย 1,000,000฿ เพราะแกตอบถูกหมด... ข้าไม่ยอม!!!"']
+    };
+    const taunts = robberDefeatTaunts[robberType] || robberDefeatTaunts.petty;
+    const taunt = taunts[Math.floor(Math.random()*taunts.length)];
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase:'robber_taunt',
+      robberTauntData:{ taunt, robberType, won: true },
+      resultData:{ perPlayer, isRobberRound, robberType },
+      qaLogRound: qaLog, _resolving:false, _questionResolving:false
     });
   } else {
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'result',
       resultData:{ perPlayer, isRobberRound, robberType },
-      qaLogRound: qaLog,
-      _resolving: false,
-      _questionResolving: false
+      qaLogRound: qaLog, _resolving:false, _questionResolving:false
     });
   }
 }
 
-// ===== ROBBER TAUNT (after wrong answer) =====
+// ===== ROBBER TAUNT =====
 function showRobberTaunt(data){
   if(!data) return;
   if(document.getElementById('screen-emergency').classList.contains('active') &&
@@ -2346,19 +2355,40 @@ function showRobberTaunt(data){
   const rt = ROBBER_TYPE[data.robberType] || ROBBER_TYPE.petty;
   const screen = document.getElementById('screen-emergency');
   screen.dataset.tauntShown = 'true';
-  screen.innerHTML = `
-    <div class="emergency-panel slide-up" style="text-align:center">
-      <div style="font-size:5rem;animation:shake 0.5s ease-in-out infinite">${rt.emoji}</div>
-      <div style="font-size:1.6rem;font-weight:900;color:var(--accent-red);margin:16px 0 8px">โจรชนะ!!</div>
-      <div style="background:rgba(232,69,69,0.15);border:1px solid rgba(232,69,69,0.4);border-radius:12px;padding:16px 20px;margin:12px 0">
-        <div style="font-size:1.2rem;font-weight:700;color:#ff8080;line-height:1.6">${data.taunt}</div>
+
+  const playerWon = data.won === true; // player ชนะโจร
+
+  if(playerWon){
+    // โจรแพ้ — โจรเสียใจ พื้นเขียว
+    screen.innerHTML = `
+      <div class="emergency-panel slide-up" style="text-align:center">
+        <div style="font-size:5rem">${rt.emoji}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:var(--accent-green);margin:16px 0 8px">ชนะโจร!! 🎉</div>
+        <div style="background:rgba(80,200,120,0.12);border:1px solid rgba(80,200,120,0.4);border-radius:12px;padding:16px 20px;margin:12px 0">
+          <div style="font-size:1.2rem;font-weight:700;color:#80f0a0;line-height:1.6">${data.taunt}</div>
+        </div>
+        <div style="color:var(--text-dim);font-size:0.85rem;margin:12px 0">ดูผลรอบนี้ได้เลย...</div>
+        ${state.isHost
+          ? `<button class="btn btn-green" style="min-width:180px;margin-top:8px" onclick="hostGoToResult()">ดูผลรอบนี้ →</button>`
+          : `<div style="color:var(--text-dim);font-size:0.85rem">รอ Host นำไปต่อ...</div>`}
       </div>
-      <div style="color:var(--text-dim);font-size:0.85rem;margin:12px 0">ดูผลรอบนี้ได้เลย...</div>
-      ${state.isHost
-        ? `<button class="btn btn-red" style="min-width:180px;margin-top:8px" onclick="hostGoToResult()">ดูผลรอบนี้ →</button>`
-        : `<div style="color:var(--text-dim);font-size:0.85rem">รอ Host นำไปต่อ...</div>`}
-    </div>
-  `;
+    `;
+  } else {
+    // โจรชนะ — โจรยั่วยุ พื้นแดง
+    screen.innerHTML = `
+      <div class="emergency-panel slide-up" style="text-align:center">
+        <div style="font-size:5rem;animation:shake 0.5s ease-in-out infinite">${rt.emoji}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:var(--accent-red);margin:16px 0 8px">โจรชนะ!!</div>
+        <div style="background:rgba(232,69,69,0.15);border:1px solid rgba(232,69,69,0.4);border-radius:12px;padding:16px 20px;margin:12px 0">
+          <div style="font-size:1.2rem;font-weight:700;color:#ff8080;line-height:1.6">${data.taunt}</div>
+        </div>
+        <div style="color:var(--text-dim);font-size:0.85rem;margin:12px 0">ดูผลรอบนี้ได้เลย...</div>
+        ${state.isHost
+          ? `<button class="btn btn-red" style="min-width:180px;margin-top:8px" onclick="hostGoToResult()">ดูผลรอบนี้ →</button>`
+          : `<div style="color:var(--text-dim);font-size:0.85rem">รอ Host นำไปต่อ...</div>`}
+      </div>
+    `;
+  }
   showScreen('screen-emergency');
 }
 
