@@ -666,11 +666,21 @@
       </div>
       <div class="rule-card">
         <div class="icon">🦹</div>
-        <div>รอบโจร! ตอบผิด → <strong style="color:var(--accent-red)">เสียเงิน + หัวใจ</strong></div>
+        <div><strong>โจรลูกกระจ๊อก</strong> 1 ข้อ<br>ตอบผิด → <strong style="color:var(--accent-red)">-303,000฿ + ❤️-0.5</strong><br>ตอบถูก → รอด!</div>
       </div>
       <div class="rule-card">
+        <div class="icon">🦹🦹</div>
+        <div><strong>กลุ่มโจร</strong> 4 ข้อ<br>ตอบผิด → <strong style="color:var(--accent-red)">-530,000฿ + ❤️-0.5</strong><br>ตอบถูก → +50,000฿</div>
+      </div>
+      <div class="rule-card" style="grid-column:1/-1;background:rgba(155,89,182,0.08);border-color:rgba(155,89,182,0.3)">
+        <div class="icon">🦹‍♂️</div>
+        <div><strong style="color:var(--accent-purple)">หัวหน้าโจร</strong> 5 ข้อ — ต้องถูก<strong>ทุกข้อ</strong><br>
+        ✅ ถูกครบ 5 ข้อ → <strong style="color:var(--accent-green)">+1,000,000฿ + ⚔️ดาบ</strong><br>
+        ❌ ผิดแม้แต่ 1 ข้อ → <strong style="color:var(--accent-red)">-1,000,000฿ + ❤️-1</strong></div>
+      </div>
+      <div class="rule-card" style="background:rgba(74,158,255,0.06);border-color:rgba(74,158,255,0.25)">
         <div class="icon">⚔️</div>
-        <div>ชนะหัวหน้าโจร → ได้<strong style="color:var(--accent-blue)">อาวุธ</strong> ป้องกันการโจมตี</div>
+        <div><strong style="color:var(--accent-blue)">ดาบ</strong> — เก็บได้สูงสุด 1 ชิ้น<br>เมื่อเจอโจรแล้วตอบผิด → <strong>ดาบปกป้องไม่เสียเงินและหัวใจ</strong> แต่ดาบจะหายทันที</div>
       </div>
       <div class="rule-card">
         <div class="icon">❤️</div>
@@ -941,24 +951,23 @@ const ADJECTIVES_BY_DAY = {
 // Keep ADJECTIVES as flat array for backward compat (use day 1 as default)
 const ADJECTIVES = [...ADJECTIVES_BY_DAY[1], ...ADJECTIVES_BY_DAY[2], ...ADJECTIVES_BY_DAY[3]];
 
-// Wrong answer distractors generator
-// Returns kana strings (for matching), but choiceDisplay() converts to kanji form
+// Wrong answer distractors generator — ใช้ reading (kana) ทั้งหมด ไม่ใช้ word (kanji)
 function genDistractors(adj, correct){
   const distractors = [];
   const r = adj.reading;
   const rBase = r.endsWith('い') ? r.slice(0,-1) : r;
 
   if(adj.type === 'i'){
-    distractors.push(rBase + 'じゃない');      // สับสนกับ な-adj (ผิด)
-    distractors.push(r + 'ない');              // ลืมเปลี่ยน い→く (ผิด)
-    distractors.push(rBase + 'くなかった');    // past tense (ผิดบริบท)
-    distractors.push(rBase + 'ないです');      // ผิดรูป
+    distractors.push(rBase + 'じゃない');    // สับสนกับ な-adj
+    distractors.push(r + 'ない');            // ลืมเปลี่ยน い→く
+    distractors.push(rBase + 'くなかった'); // past tense
+    // *** ไม่มี ないです — เพราะ generateQuestion จะเติม です ทุกตัวเลือกอยู่แล้ว
   } else {
-    const base = adj.word;
-    distractors.push(base + 'くない');         // สับสนกับ い-adj (ผิด)
-    distractors.push(base + 'ない');           // ลืมใส่ じゃ (ผิด)
-    distractors.push(base + 'じゃなかった');   // past tense (ผิดบริบท)
-    distractors.push(base + 'くなかった');     // ผิดทั้งรูปและ type
+    // な-adj: ใช้ reading ทั้งหมด ไม่ใช้ word (kanji)
+    distractors.push(r + 'くない');         // สับสนกับ い-adj
+    distractors.push(r + 'ない');           // ลืมใส่ じゃ
+    distractors.push(r + 'じゃなかった');   // past tense
+    distractors.push(r + 'くなかった');     // ผิดทั้งรูปและ type
   }
 
   const seen = new Set([correct]);
@@ -972,46 +981,66 @@ function genDistractors(adj, correct){
   return pool.slice(0,3);
 }
 
-// Build display form (kanji+suffix) and reading for a choice string
+// Build display (kanji+suffix) and kana reading for a choice string
+// choiceStr เป็น kana ล้วน เช่น "やすくないです", "あんぜんじゃないです"
 function buildChoiceDisplay(choiceStr, adj){
   const word = adj.word;
   const reading = adj.reading;
   const rBase = reading.endsWith('い') ? reading.slice(0,-1) : reading;
   const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
 
-  // strip です ออกก่อน
+  // strip です ออกก่อน — ป้องกัน ないですです
   const hasDes = choiceStr.endsWith('です');
   const base = hasDes ? choiceStr.slice(0,-2) : choiceStr;
   const des = hasDes ? 'です' : '';
 
-  // correct negPresent
-  if(base === adj.negPresent){
+  // *** reading ที่แสดงในวงเล็บ = choiceStr ทั้งหมด (kana ล้วน เช่น やすくないです) ***
+  const kanaReading = choiceStr;
+
+  // correct negPresent (base == negPresent ซึ่งเป็น kana-based หรือ kanji-based)
+  // ตรวจทั้ง exact match และ kana match
+  const negP = adj.negPresent;
+  const negPBase = negP.endsWith('です') ? negP.slice(0,-2) : negP;
+  if(base === negPBase || base === negP){
     if(adj.type === 'i'){
-      return { display: wordBase + 'くない' + des, reading: choiceStr };
+      return { display: wordBase + 'くない' + des, reading: kanaReading };
     } else {
-      return { display: word + 'じゃない' + des, reading: choiceStr };
+      return { display: word + 'じゃない' + des, reading: kanaReading };
     }
   }
 
-  // distractor — match suffix then replace stem with kanji
-  const suffixes = ['じゃなかった','くなかった','じゃない','くない','ないです','ない','くて'];
+  // distractor — หา suffix แล้วแทน stem kana ด้วย kanji
+  const suffixes = ['じゃなかった','くなかった','じゃない','くない','ない','くて'];
   for(const suf of suffixes){
     if(base.endsWith(suf)){
       const stem = base.slice(0, base.length - suf.length);
-      if(stem === rBase || stem === reading || stem === word || stem === wordBase){
+      if(stem === rBase || stem === reading){
+        // stem เป็น kana base → แสดงเป็น kanji base
         const displayStem = (adj.type==='i') ? wordBase : word;
-        return { display: displayStem + suf + des, reading: choiceStr };
+        return { display: displayStem + suf + des, reading: kanaReading };
       }
-      return { display: base + des, reading: choiceStr };
+      // fallback: แสดง kana ล้วน + des
+      return { display: base + des, reading: kanaReading };
     }
   }
-  return { display: choiceStr, reading: choiceStr };
+  return { display: choiceStr, reading: kanaReading };
 }
 
-// Generate question — choices ทั้งหมดเติม です
+// Generate question — correct = negPresent+です, distractors = kana+です
 function generateQuestion(adj){
-  const correct = adj.negPresent + 'です';
-  const wrong = genDistractors(adj, adj.negPresent).map(d => d + 'です');
+  // negPresent อาจมี kanji เช่น 大きくない → เราต้องการ kana สำหรับ matching
+  // ใช้ reading เพื่อสร้าง correct kana form
+  const r = adj.reading;
+  const rBase = r.endsWith('い') ? r.slice(0,-1) : r;
+  const kanaCorrect = adj.type==='i' ? rBase+'くない' : r+'じゃない';
+
+  const correct = kanaCorrect + 'です';
+  const distractors = genDistractors(adj, kanaCorrect);
+  // เติม です — แต่ถ้า distractor ลงท้าย ないです ให้ไม่เติมซ้ำ
+  const wrong = distractors.map(d => {
+    if(d.endsWith('です')) return d; // มี です อยู่แล้ว
+    return d + 'です';
+  });
   const choices = [correct, ...wrong];
   for(let i=choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}
   return { adj, correct, choices };
@@ -1046,8 +1075,8 @@ const ROBBER_TYPE = {
     questionCount:4,  // 1+3 ข้อ
   },
   boss: { name:'หัวหน้าโจร', emoji:'🦹‍♂️', badge:'boss',
-    moneyGain:800000, lossOnFail:850000, heartLoss:1, bonusOnWin:50000, weaponOnWin:true,
-    questionCount:5,  // 1+4 ข้อ
+    moneyGain:800000, lossOnFail:1000000, heartLoss:1, bonusOnWin:1000000, weaponOnWin:true,
+    questionCount:5,  // ถูกทุกข้อ = +1,000,000 | ผิดแม้แต่ 1 ข้อ = -1,000,000
   }
 };
 
@@ -1685,7 +1714,7 @@ function _doShowEmergency(data, onDone){
   const tauntObj = taunts[Math.floor(Math.random()*taunts.length)];
   const qCount = ROBBER_TYPE[data.robberType]?.questionCount || 1;
   const infoLine = data.robberType==='boss'
-    ? `💀 ผิด: -850,000฿ + ❤️-1 | ถูก: +โบนัส+⚔️ | ${qCount} ข้อ`
+    ? `💀 ถูกครบ 5 ข้อ: +1,000,000฿ + ⚔️ | ผิดแม้แต่ 1 ข้อ: -1,000,000฿ + ❤️-1`
     : data.robberType==='gang'
     ? `⚠️ ผิด: -530,000฿ + ❤️-0.5 | ถูก: +50,000฿ | ${qCount} ข้อ`
     : `🦹 ผิด: -303,000฿ + ❤️-0.5 | ถูก: รอด! | ${qCount} ข้อ`;
@@ -1839,8 +1868,10 @@ function renderQuestion(){
     const { display, reading: cReading } = buildChoiceDisplay(c, qdata.adj);
     return `
       <button class="choice-btn" onclick="answerQ('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-        <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${display}</span>
-        <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.8rem;color:var(--accent-gold);opacity:0.8;margin-left:4px">（${cReading}）</span>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${display}</span>
+          <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.95rem;color:var(--accent-gold);opacity:0.75">（${cReading}）</span>
+        </div>
       </button>
     `;
   }).join('');
@@ -1916,8 +1947,10 @@ window.answerQ = function(answer){
     const isChosen = c === answer;
     const { display, reading: cReading } = buildChoiceDisplay(c, qdata.adj);
     return `<button class="choice-btn${isChosen?' selected':''}" disabled style="${isChosen?'border-color:var(--accent-blue);background:rgba(74,158,255,0.12)':''}">
-      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${display}</span>
-      <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.8rem;color:var(--accent-gold);opacity:0.8;margin-left:4px">（${cReading}）</span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.3rem;font-weight:700;color:var(--accent-gold)">${display}</span>
+        <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.95rem;color:var(--accent-gold);opacity:0.75">（${cReading}）</span>
+      </div>
     </button>`;
   }).join('');
 
@@ -2136,24 +2169,43 @@ async function resolveRobberRound(room){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
     } else if(pr.hitRobber){
-      // เจอกองโจร — ต้องผัน
       const ans = answers[pid];
-      const correct = ans?.allCorrect || false;
-      if(correct){
-        moneyChange = rt.bonusOnWin || 0;
-        weaponChange = rt.weaponOnWin ? 1 : 0;
-        outcome = 'robber_won';
-      } else {
-        if((p.weapons||0) > 0){
-          useWeapon = true;
-          weaponChange = -1;
-          moneyChange = 0;
-          heartChange = 0;
-          outcome = 'weapon_blocked';
+      const allCorrect = ans?.allCorrect || false;
+      const currentWeapons = p.weapons || 0;
+
+      if(robberType === 'boss'){
+        // หัวหน้าโจร: ถูกครบ 5 ข้อ = +1,000,000 + ⚔️ | ผิดแม้แต่ 1 ข้อ = -1,000,000 + ❤️-1
+        if(allCorrect){
+          moneyChange = 1000000;
+          weaponChange = currentWeapons < 1 ? 1 : 0; // cap ที่ 1
+          outcome = 'robber_won';
         } else {
-          moneyChange = -rt.lossOnFail;
-          heartChange = -rt.heartLoss;
-          outcome = 'robber_lost';
+          if(currentWeapons > 0){
+            useWeapon = true;
+            weaponChange = -1;
+            outcome = 'weapon_blocked';
+          } else {
+            moneyChange = -1000000;
+            heartChange = -1;
+            outcome = 'robber_lost';
+          }
+        }
+      } else {
+        // petty / gang: ชนะ → +⚔️ (cap 1) | แพ้ → ดาบป้องกัน หรือ เสียเงิน+หัวใจ
+        if(allCorrect){
+          moneyChange = rt.bonusOnWin || 0;
+          weaponChange = currentWeapons < 1 ? 1 : 0; // ได้ดาบทุกประเภท cap ที่ 1
+          outcome = 'robber_won';
+        } else {
+          if(currentWeapons > 0){
+            useWeapon = true;
+            weaponChange = -1;
+            outcome = 'weapon_blocked';
+          } else {
+            moneyChange = -rt.lossOnFail;
+            heartChange = -rt.heartLoss;
+            outcome = 'robber_lost';
+          }
         }
       }
     } else if(isRobberRound && pr.needsQuestion){
@@ -2171,9 +2223,9 @@ async function resolveRobberRound(room){
       moneyChange = 0;
     }
 
-    const newMoney = (p.money||0) + moneyChange; // ไม่มี Math.max(0) — ติดลบได้
+    const newMoney = (p.money||0) + moneyChange;
     const newHearts = Math.max(0,(p.hearts||5)+heartChange);
-    const newWeapons = Math.max(0,(p.weapons||0)+weaponChange);
+    const newWeapons = Math.min(1, Math.max(0,(p.weapons||0)+weaponChange)); // cap ที่ 1
 
     updates[`players/${pid}/money`] = newMoney;
     updates[`players/${pid}/hearts`] = newHearts;
@@ -2187,8 +2239,10 @@ async function resolveRobberRound(room){
       newMoney, newHearts, newWeapons,
       pile: pr.pile,
       robberType, rt_name: rt.name,
-      lossOnFail: rt.lossOnFail, heartLoss: rt.heartLoss,
-      bonusOnWin: rt.bonusOnWin, weaponOnWin: rt.weaponOnWin
+      lossOnFail: robberType==='boss' ? 1000000 : rt.lossOnFail,
+      heartLoss: rt.heartLoss,
+      bonusOnWin: robberType==='boss' ? 1000000 : rt.bonusOnWin,
+      weaponOnWin: rt.weaponOnWin
     };
   });
 
@@ -2330,7 +2384,7 @@ function showResult(resultData, pileResults, pileChoices){
       const gloatPool = {
         petty:['🦹 "ฮ่าๆๆ! ผันผิดเฉยเลย! เงิน 303,000฿ เป็นของข้าแล้ว~"','🦹 "อ่อนแอเกินไป! ขอบคุณสำหรับเงินนะ~"','🦹 "ง่ายเกินไปเลย! กลับไปเรียนใหม่ซะ!"'],
         gang:['🦹🦹 "พวกเราชนะ!! 530,000฿ หมดเกลี้ยง!!"','🦹🦹 "4 ข้อยังตอบไม่ได้ กลับไปเรียนใหม่เหอะ!"','🦹🦹 "มาเป็นทีมก็สู้ไม่ได้! ขอบคุณ~"'],
-        boss:['🦹‍♂️ "หัวหน้าโจรมาเองแล้ว แพ้แน่นอน! 850,000฿ + หัวใจ เอาไปหมด!"','🦹‍♂️ "ขี้แพ้สิ้นดี! ข้าจะกลับมาอีกแน่!"','🦹‍♂️ "ทั้งเงินทั้งหัวใจ ข้าเอาหมด! ฮ่าฮ่า~"']
+        boss:['🦹‍♂️ "ตอบผิดแค่ข้อเดียว ก็จบเลยนะ! 1,000,000฿ เป็นของข้า!"','🦹‍♂️ "หัวหน้าโจรอย่างข้า ไม่มีทางแพ้ได้! เงินล้านเอาไปเลย!"','🦹‍♂️ "5 ข้อต้องถูกทุกข้อถึงจะรอด แต่มึงทำไม่ได้! ฮ่าฮ่า~"']
       };
       const gloat = (gloatPool[robberKey]||gloatPool.petty)[Math.floor(Math.random()*(gloatPool[robberKey]||gloatPool.petty).length)];
       rows += `
@@ -2338,18 +2392,23 @@ function showResult(resultData, pileResults, pileChoices){
           <div style="font-size:2rem;margin-bottom:4px">${rt2.emoji}</div>
           <div style="font-family:'Noto Sans JP',sans-serif;font-size:0.95rem;font-weight:700;color:#ff8080;line-height:1.5">${gloat}</div>
         </div>`;
-      const medical = myData.robberType==='boss'?50000:myData.robberType==='gang'?30000:3000;
-      const stolen = myData.lossOnFail - medical;
-      rows += `<div class="result-row" style="background:rgba(232,69,69,0.1);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💸 เงินถูกขโมย</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
-      rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">🏥 ค่ารักษาบาดเจ็บ</span><span class="value loss">-${medical.toLocaleString()} ฿</span></div>`;
-      rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💔 หัวใจที่เสีย</span><span class="value loss">${myData.heartChange} ดวง</span></div>`;
+      if(robberKey === 'boss'){
+        rows += `<div class="result-row" style="background:rgba(232,69,69,0.1);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💸 โดนโจรชนะ</span><span class="value loss">-1,000,000 ฿</span></div>`;
+        rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💔 หัวใจที่เสีย</span><span class="value loss">-1 ดวง</span></div>`;
+      } else {
+        const medical = robberKey==='gang'?30000:3000;
+        const stolen = myData.lossOnFail - medical;
+        rows += `<div class="result-row" style="background:rgba(232,69,69,0.1);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💸 เงินถูกขโมย</span><span class="value loss">-${stolen.toLocaleString()} ฿</span></div>`;
+        rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">🏥 ค่ารักษาบาดเจ็บ</span><span class="value loss">-${medical.toLocaleString()} ฿</span></div>`;
+        rows += `<div class="result-row" style="background:rgba(232,69,69,0.08);border-radius:6px;padding:8px 12px;margin:2px 0"><span class="label">💔 หัวใจที่เสีย</span><span class="value loss">${myData.heartChange} ดวง</span></div>`;
+      }
     } else if(o === 'robber_won'){
       const rt2 = ROBBER_TYPE[myData.robberType] || ROBBER_TYPE.petty;
       const robberKey = myData.robberType || 'petty';
       const regretPool = {
         petty:['🦹 "ชิ! ตอบถูกเฉยเลย! ข้าหนีก่อนดีกว่า!"','🦹 "ไม่จริง! เก่งไปป่ะ! ครั้งหน้าจะไม่รอดแน่!"','🦹 "คราวนี้รอด แต่ครั้งหน้าข้าจะมาอีก!"'],
         gang:['🦹🦹 "ถอย! ถอย! คนนี้เก่งเกินไป!"','🦹🦹 "เป็นไปไม่ได้! 4 ข้อตอบถูกหมด!?"','🦹🦹 "ครั้งนี้มึงรอด แต่ครั้งหน้าจะเอาโจรมาเพิ่มอีก!"'],
-        boss:['🦹‍♂️ "เป็นไปไม่ได้... หัวหน้าโจรอย่างข้า...แพ้!?"','🦹‍♂️ "ข้าจะกลับมาแก้แค้น จำไว้ให้ดี!!"','🦹‍♂️ "5 ข้อถูกหมด!? มนุษย์คนนี้ไม่ธรรมดา!!"']
+        boss:['🦹‍♂️ "ไม่ได้เรื่อง!! ตอบถูกครบ 5 ข้อได้ยังไง!?"','🦹‍♂️ "1,000,000฿ เสียไปเฉยเลย... ข้าจะกลับมาแก้แค้น!!"','🦹‍♂️ "5 ข้อถูกหมด!? มนุษย์คนนี้ไม่ธรรมดา!! ข้าไม่ยอม!!"']
       };
       const regret = (regretPool[robberKey]||regretPool.petty)[Math.floor(Math.random()*(regretPool[robberKey]||regretPool.petty).length)];
       rows += `
@@ -2359,9 +2418,14 @@ function showResult(resultData, pileResults, pileChoices){
         </div>`;
       rows += `<div class="result-row"><span class="label">🛡️ รักษาเงินไว้ได้</span><span class="value gain">ปลอดภัย!</span></div>`;
       if(mc > 0) rows += `<div class="result-row"><span class="label">🎁 โบนัสสู้ชนะ</span><span class="value gain">+${mc.toLocaleString()} ฿</span></div>`;
-      if(myData.weaponChange > 0) rows += `<div class="result-row"><span class="label">⚔️ ได้รับอาวุธ</span><span class="value gain">+${myData.weaponChange} ชิ้น</span></div>`;
+      if(myData.weaponChange > 0){
+        rows += `<div class="result-row"><span class="label">⚔️ ได้รับดาบ!</span><span class="value gain">+1 ชิ้น (ป้องกันโจรได้ 1 ครั้ง)</span></div>`;
+      } else if(myData.newWeapons >= 1){
+        rows += `<div class="result-row"><span class="label">⚔️ ดาบเต็มแล้ว</span><span class="value neutral">มีดาบอยู่แล้ว 1 ชิ้น</span></div>`;
+      }
     } else if(o === 'weapon_blocked'){
-      rows += `<div class="result-row"><span class="label">⚔️ ใช้อาวุธป้องกัน</span><span class="value neutral">-1 ชิ้น</span></div>`;
+      rows += `<div class="result-row"><span class="label">⚔️ ดาบปกป้องคุณ!</span><span class="value gain">ไม่เสียเงินและหัวใจ</span></div>`;
+      rows += `<div class="result-row"><span class="label">💨 ดาบหายไปแล้ว</span><span class="value neutral">-1 ชิ้น</span></div>`;
     } else if(o === 'gravel_correct'){
       rows += `<div class="result-row"><span class="label">✅ ผันถูก</span><span class="value gain">+200,000 ฿ ค่าแยกทอง</span></div>`;
     } else if(o === 'gravel_wrong'){
