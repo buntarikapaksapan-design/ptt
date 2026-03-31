@@ -1895,9 +1895,10 @@ function renderQuestion(){
 
   // Furigana: show reading above the word — ชิดกัน อ่านง่าย
   const furiganaHTML = `
-    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
+    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:6px">
+      <span style="font-size:1.2rem;font-weight:700;color:var(--text-dim);letter-spacing:0.05em">${qdata.adj.meaning}</span>
       <span style="font-family:'Noto Sans JP',sans-serif;font-size:3.5rem;font-weight:900;color:var(--accent-gold);line-height:1">${qdata.adj.word}</span>
-      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.1em">${qdata.adj.reading}</span>
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.2rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.1em">${qdata.adj.reading}</span>
     </div>`;
 
   const screen = document.getElementById('screen-question');
@@ -1910,9 +1911,9 @@ function renderQuestion(){
       </div>
       <div class="multi-q-progress">${progressDots}</div>
       <div class="question-box">
-        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
-        <div style="margin:8px 0">${furiganaHTML}</div>
-        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:8px">${typeLabel}</div>
+        <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:8px">ผันเป็นปฏิเสธปัจจุบัน</div>
+        <div style="margin:4px 0">${furiganaHTML}</div>
+        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:10px">${typeLabel}</div>
       </div>
       <div class="choices-grid">${choicesHTML}</div>
       <div id="q-feedback" style="text-align:center;padding:10px;font-size:0.9rem;min-height:40px"></div>
@@ -1947,9 +1948,10 @@ window.answerQ = function(answer){
   const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
   const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
   const furiganaHTML2 = `
-    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
+    <div style="display:inline-flex;flex-direction:column;align-items:center;gap:6px">
+      <span style="font-size:1.2rem;font-weight:700;color:var(--text-dim);letter-spacing:0.05em">${qdata.adj.meaning}</span>
       <span style="font-family:'Noto Sans JP',sans-serif;font-size:3.5rem;font-weight:900;color:var(--accent-gold);line-height:1">${qdata.adj.word}</span>
-      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.1em">${qdata.adj.reading}</span>
+      <span style="font-family:'Noto Sans JP',sans-serif;font-size:1.2rem;font-weight:700;color:var(--accent-gold);letter-spacing:0.1em">${qdata.adj.reading}</span>
     </div>`;
 
   const progressDots = Array.from({length:total},(_,i)=>{
@@ -2228,8 +2230,10 @@ async function resolveRobberRound(room){
     } else if(pr.hitRobber){
       const ans = answers[pid];
       const allCorrect = ans?.allCorrect || false;
-      const answerList = ans?.answers || [];
-      correctCount = answerList.filter(a=>a.correct).length; // assign ไม่ใช่ declare
+      // Firebase แปลง array → object {0:{...},1:{...}} ต้องใช้ Object.values()
+      const rawAnswers = ans?.answers || {};
+      const answerList = Array.isArray(rawAnswers) ? rawAnswers : Object.values(rawAnswers);
+      correctCount = answerList.filter(a=>a && a.correct).length;
       const currentWeapons = p.weapons || 0;
 
       if(robberType === 'boss'){
