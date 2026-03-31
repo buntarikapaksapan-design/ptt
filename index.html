@@ -2217,6 +2217,7 @@ async function resolveRobberRound(room){
   Object.entries(pileResults).forEach(([pid,pr])=>{
     const p = players[pid];
     if(!p || p.eliminated) return;
+    console.log(`[resolve] pid=${pid} hitRobber=${pr.hitRobber} type=${pr.type} needsQuestion=${pr.needsQuestion} robberType=${robberType}`);
     let moneyChange = 0;
     let heartChange = 0;
     let weaponChange = 0;
