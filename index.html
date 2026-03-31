@@ -2027,7 +2027,35 @@ function showReveal(revealData){
 
   const randMsg = (arr) => arr[Math.floor(Math.random()*arr.length)];
   const allCorrect = myAnswers.every(a=>a.correct);
-  const msgObj = allCorrect ? randMsg(CORRECT_MSGS) : randMsg(WRONG_MSGS);
+  const isRobberQ = state.currentRobberType && state.currentRobberType !== 'normal';
+
+  let msgObj;
+  if(isRobberQ){
+    // รอบโจร — ใช้คำพูดโจร
+    const robberKey = state.currentRobberType || 'petty';
+    const rt2 = ROBBER_TYPE[robberKey] || ROBBER_TYPE.petty;
+    if(allCorrect){
+      const wonPool = {
+        petty:[ {jp:'ちくしょう！逃げろ！😤', th:'ชิ! ผันถูกเฉยเลย ข้าหนีก่อนดีกว่า!'}, {jp:'くそ！また次だ！😠', th:'แกรอดคราวนี้ แต่ครั้งหน้าข้าจะมาอีก!'} ],
+        gang:[  {jp:'退け！退け！強すぎる！😱', th:'ถอย ถอย! ตอบถูกเกิน 2 ข้อได้ยังไง!'}, {jp:'まずい！やられた！😰', th:'เสีย 400,000฿ เพราะถูกเกินครึ่ง!! แย่จัง!'} ],
+        boss:[  {jp:'ありえない！完璧すぎる！💀', th:'ไม่ได้เรื่อง!! ตอบถูกครบ 5 ข้อได้ยังไง!?'}, {jp:'負けた...信じられない！😤', th:'เสีย 1,000,000฿ เพราะแกตอบถูกหมด... ข้าไม่ยอม!!'} ]
+      };
+      const pool = wonPool[robberKey] || wonPool.petty;
+      msgObj = { ...randMsg(pool), emoji: rt2.emoji, color: 'var(--accent-green)', bg: 'rgba(80,200,120,0.1)', textColor: '#a0f0b0' };
+    } else {
+      const lostPool = {
+        petty:[ {jp:'ふははは！もらった！🦹', th:'ฮ่าๆ ผันผิดเลยนะ ขอบคุณเงินด้วย~'}, {jp:'ありがとう！弱いね！😏', th:'อ่อนแอเกินไป ขอบคุณสำหรับเงินนะ~'} ],
+        gang:[  {jp:'やった！2問以下だ！🦹🦹', th:'ถูกไม่ถึง 2 ข้อ!! 400,000฿ เป็นของเรา!'}, {jp:'弱い！もっと練習して！😤', th:'อ่อนแอมาก ตอบไม่ถึงครึ่ง ขอบคุณเงิน~'} ],
+        boss:[  {jp:'1問でも間違えれば終わりだ！🦹‍♂️', th:'ตอบผิดแม้แต่ข้อเดียว ก็จบเลยนะ 1,000,000฿ เป็นของข้า!'}, {jp:'ボスには勝てない！ふははは！💀', th:'หัวหน้าโจรอย่างข้า ไม่มีทางแพ้ ขอบคุณล้านนึงนะ~'} ]
+      };
+      const pool = lostPool[robberKey] || lostPool.petty;
+      msgObj = { ...randMsg(pool), emoji: rt2.emoji, color: '#ff6060', bg: 'rgba(232,69,69,0.12)', textColor: '#ffaaaa' };
+    }
+  } else {
+    // รอบปกติ — ใช้คำพูดครู
+    const m = allCorrect ? randMsg(CORRECT_MSGS) : randMsg(WRONG_MSGS);
+    msgObj = { ...m, emoji: null, color: allCorrect?'var(--accent-green)':'#ff6060', bg: allCorrect?'rgba(80,200,120,0.1)':'rgba(232,69,69,0.12)', textColor: allCorrect?'#a0f0b0':'#ffaaaa' };
+  }
   const rt = ROBBER_TYPE[state.currentRobberType] || ROBBER_TYPE.petty;
   const badgeBg = rt.badge==='boss'?'rgba(155,89,182,0.2)':rt.badge==='gang'?'rgba(255,100,0,0.2)':'rgba(232,69,69,0.15)';
   const badgeColor = rt.badge==='boss'?'var(--accent-purple)':rt.badge==='gang'?'#ff6400':'var(--accent-red)';
@@ -2069,15 +2097,16 @@ function showReveal(revealData){
   document.getElementById('screen-question').innerHTML = `
     <div class="panel question-panel slide-up" style="max-height:90vh;overflow-y:auto">
       <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:${allCorrect?'2.5':'2.5'}rem;margin-bottom:8px">${allCorrect?'🎉':'💀'}</div>
+        <div style="font-size:2.5rem;margin-bottom:8px">${allCorrect?'🎉':'💀'}</div>
         <div style="font-size:1.6rem;font-weight:900;color:${allCorrect?'var(--accent-green)':'var(--accent-red)'};margin-bottom:4px">
           ${allCorrect ? '✅ ถูกต้อง!' : '❌ ผิด!'}
         </div>
       </div>
 
-      <div style="background:${allCorrect?'rgba(80,200,120,0.1)':'rgba(232,69,69,0.12)'};border-radius:14px;padding:16px 18px;margin-bottom:16px;text-align:center">
-        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1.6rem;font-weight:900;color:${allCorrect?'var(--accent-green)':'#ff6060'};margin-bottom:8px">${msgObj.jp}</div>
-        <div style="font-size:1.1rem;font-weight:700;color:${allCorrect?'#a0f0b0':'#ffaaaa'};line-height:1.5">${msgObj.th}</div>
+      <div style="background:${msgObj.bg};border-radius:14px;padding:16px 18px;margin-bottom:16px;text-align:center">
+        ${msgObj.emoji ? `<div style="font-size:2rem;margin-bottom:6px">${msgObj.emoji}</div>` : ''}
+        <div style="font-family:'Noto Sans JP',sans-serif;font-size:1.4rem;font-weight:900;color:${msgObj.color};margin-bottom:8px">${msgObj.jp}</div>
+        <div style="font-size:1rem;font-weight:700;color:${msgObj.textColor};line-height:1.5">${msgObj.th}</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${revealRows}</div>
@@ -2307,7 +2336,6 @@ async function resolveRobberRound(room){
   // ถ้ามีคนโดนโจร (robber_lost) → robber_taunt (โจรยั่วยุ)
   // ถ้ามีคนชนะโจร (robber_won) → robber_won_taunt (โจรเสียใจ)
   const anyRobberLost = Object.values(perPlayer).some(pd=>pd.outcome==='robber_lost');
-  const anyRobberWon  = Object.values(perPlayer).some(pd=>pd.outcome==='robber_won');
 
   if(isRobberRound && anyRobberLost){
     const robberVictoryTaunts = {
@@ -2323,21 +2351,8 @@ async function resolveRobberRound(room){
       resultData:{ perPlayer, isRobberRound, robberType },
       qaLogRound: qaLog, _resolving:false, _questionResolving:false
     });
-  } else if(isRobberRound && anyRobberWon){
-    const robberDefeatTaunts = {
-      petty:['🦹 "ชิ! ผันถูกเฉยเลย! ข้าหนีก่อนดีกว่า!"','🦹 "ไม่จริง! เก่งไปหน่อย ครั้งหน้าข้าจะมาอีก!"'],
-      gang:['🦹🦹 "ถอย! ถอย! ตอบถูกเกิน 2 ข้อได้ยังไง! แย่จัง!"','🦹🦹 "เสีย 400,000฿ เพราะถูกเกินครึ่ง!! ครั้งหน้าจะตั้ง 8 ข้อ!"'],
-      boss:['🦹‍♂️ "ไม่ได้เรื่อง!! ตอบถูกครบ 5 ข้อได้ยังไง!? ข้าจะกลับมา!!"','🦹‍♂️ "เสีย 1,000,000฿ เพราะแกตอบถูกหมด... ข้าไม่ยอม!!!"']
-    };
-    const taunts = robberDefeatTaunts[robberType] || robberDefeatTaunts.petty;
-    const taunt = taunts[Math.floor(Math.random()*taunts.length)];
-    await update(ref(db,'rooms/'+state.roomCode),{
-      phase:'robber_taunt',
-      robberTauntData:{ taunt, robberType, won: true },
-      resultData:{ perPlayer, isRobberRound, robberType },
-      qaLogRound: qaLog, _resolving:false, _questionResolving:false
-    });
   } else {
+    // ชนะโจรหรือรอบปกติ → result โดยตรง ไม่มี taunt
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'result',
       resultData:{ perPlayer, isRobberRound, robberType },
