@@ -1080,6 +1080,7 @@ let state = {
   _questionStarted: false,
   _hostRevealStarted: false,
   _emergencyPushed: false,
+  _emergencyShown: false,
   countInterval: null,
   listeners: []
 };
@@ -1259,58 +1260,20 @@ function enterLobby(code){
 
     // ===== GAME PHASES =====
     if(phase === 'select'){
+      // select = รอบปกติเท่านั้น (รอบโจรใช้ emergency → pile-select แทน)
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
-      state._emergencyPushed = false;
-      const nc = NIGHT_CONFIG[room.day||1];
-      const isRobberRound = nc.robberRounds.includes(room.round);
 
-      if(isRobberRound){
-        // รอบโจร → Host push emergency ทันที (ครั้งเดียว ด้วย local flag)
-        if(state.isHost && !state._emergencyPushed){
-          state._emergencyPushed = true;
-          const robberType = (room.roundRobberTypes||{})[room.round] || 'petty';
-          const pileCount2 = nc.piles;
-          const robberPile2 = Math.ceil(Math.random()*pileCount2);
-          const moneyOddsMap = { petty:0.5, gang:0.25, boss:0.0 };
-          const moneyOdds = moneyOddsMap[robberType] ?? 0.0;
-          const pileType2 = {};
-          for(let i=1;i<=pileCount2;i++) pileType2[i]=(moneyOdds>0&&Math.random()<moneyOdds)?'money':'gravel';
-          pileType2[robberPile2]='gravel';
-          const qCount = ROBBER_TYPE[robberType]?.questionCount||1;
-          const adjIdx2 = room.adjIndex||0;
-          const adjOrder2 = room.adjOrder||shuffleArray([...Array((ADJECTIVES_BY_DAY[room.day||1]||ADJECTIVES_BY_DAY[1]).length).keys()]);
-          const dayAdjs2 = ADJECTIVES_BY_DAY[room.day||1] || ADJECTIVES_BY_DAY[1];
-          const qAdjs = [];
-          for(let i=0;i<qCount;i++) qAdjs.push(dayAdjs2[adjOrder2[(adjIdx2+i)%adjOrder2.length]]);
-          const questionData2 = qAdjs.map(a=>{
-            const q=generateQuestion(a);
-            return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type},correct:q.correct,choices:q.choices};
-          });
-          await update(ref(db,'rooms/'+code),{
-            phase:'emergency',
-            emergencyData:{robberType,robberPile:robberPile2,pileType:pileType2,questionData:questionData2},
-            pileChoices:{},
-            adjIndex: adjIdx2+qCount,
-            adjOrder: adjOrder2,
-            _resolving:false
-          });
-        }
-        return; // รอ emergency phase — ไม่ทำอะไรเพิ่ม
-      }
-
-      // รอบปกติ → แสดง gameboard
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
       } else {
         updatePlayersStatus();
         updateChoiceIndicators(room.pileChoices||{});
       }
-      // ตรวจว่าเลือกครบ
       const actNormal = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
       const allChoseNormal = actNormal.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
-      if(allChoseNormal && state.isHost){
+      if(allChoseNormal && actNormal.length > 0 && state.isHost){
         runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
           if(cur===true) return; return true;
         }).then(r=>{ if(r.committed) resolveRound(room); });
@@ -1318,7 +1281,11 @@ function enterLobby(code){
     }
 
     if(phase === 'pile-select'){
-      // หลัง emergency countdown จบ → เลือกกองได้
+      // pile-select = หลัง emergency countdown จบ → เลือกกองได้
+      _resolvingQuestions = false;
+      state._questionStarted = false;
+      state._hostRevealStarted = false;
+
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
       } else {
@@ -1327,7 +1294,7 @@ function enterLobby(code){
       }
       const actRobber = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
       const allChoseRobber = actRobber.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
-      if(allChoseRobber && state.isHost){
+      if(allChoseRobber && actRobber.length > 0 && state.isHost){
         runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
           if(cur===true) return; return true;
         }).then(r=>{ if(r.committed) resolveRound(room); });
@@ -1335,7 +1302,9 @@ function enterLobby(code){
     }
 
     if(phase === 'emergency'){
-      if(!document.getElementById('screen-emergency').classList.contains('active')){
+      // แสดง emergency screen — listener จะ fire ซ้ำได้แต่ guard ด้วย _emergencyShown
+      if(!state._emergencyShown){
+        state._emergencyShown = true;
         showEmergency(room.emergencyData);
       }
     }
@@ -1702,11 +1671,18 @@ const ROBBER_TAUNTS = {
 
 function showEmergency(data){
   if(!data) return;
-  if(document.getElementById('screen-emergency').classList.contains('active')) return;
+  _doShowEmergency(data, null); // non-host: แสดงแต่ไม่มี countdown callback
+}
+
+function showEmergencyWithCountdown(data, onDone){
+  if(!data) return;
+  _doShowEmergency(data, onDone);
+}
+
+function _doShowEmergency(data, onDone){
   const rt = ROBBER_TYPE[data.robberType] || ROBBER_TYPE.petty;
   const taunts = ROBBER_TAUNTS[data.robberType] || ROBBER_TAUNTS.petty;
   const tauntObj = taunts[Math.floor(Math.random()*taunts.length)];
-
   const qCount = ROBBER_TYPE[data.robberType]?.questionCount || 1;
   const infoLine = data.robberType==='boss'
     ? `💀 ผิด: -850,000฿ + ❤️-1 | ถูก: +โบนัส+⚔️ | ${qCount} ข้อ`
@@ -1720,39 +1696,31 @@ function showEmergency(data){
       <div class="emergency-icon">${rt.emoji}</div>
       <div class="emergency-title">⚠️ มีโจร!</div>
       <div class="robber-type-badge ${rt.badge}">${rt.name}</div>
-
       <div style="background:rgba(232,69,69,0.12);border:1px solid rgba(232,69,69,0.3);border-radius:12px;padding:14px 16px;margin:12px 0;text-align:center">
         <div style="font-family:'Noto Sans JP',sans-serif;font-size:1.2rem;font-weight:700;color:#ff8080;margin-bottom:6px">${tauntObj.jp}</div>
         <div style="font-size:0.9rem;color:#ffbbbb;font-weight:600">${tauntObj.th}</div>
       </div>
-
-      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;text-align:center">
-        ${infoLine}
-      </div>
-
-      <div id="emg-countdown" style="font-size:3rem;font-weight:900;color:var(--accent-red);margin:12px 0">4</div>
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;text-align:center">${infoLine}</div>
+      <div id="emg-countdown" style="font-size:3.5rem;font-weight:900;color:var(--accent-red);margin:12px 0;min-width:60px;text-align:center">5</div>
       <div style="color:var(--text-dim);font-size:0.85rem">กำลังไปเลือกกอง...</div>
     </div>
   `;
   showScreen('screen-emergency');
 
-  // countdown 4 วิ แล้ว Host push select — ทุกคนเปลี่ยนหน้าพร้อมกัน
-  if(state.isHost){
-    let t = 4;
-    const cdInterval = setInterval(async()=>{
+  // countdown เฉพาะ Host (หรือถ้ามี callback) — ใช้ตัวแปร local ป้องกัน race
+  if(onDone){
+    let t = 5;
+    const tick = ()=>{
       t--;
       const el = document.getElementById('emg-countdown');
-      if(el) el.textContent = t > 0 ? t : '⚔️';
-      if(t <= 0){
-        clearInterval(cdInterval);
-        // _selectReady:true บอก select phase ว่าผ่าน emergency แล้ว พร้อมเลือกกอง
-        await update(ref(db,'rooms/'+state.roomCode),{
-          phase: 'pile-select',
-          pileChoices: {},
-          _resolving: false
-        });
+      if(el) el.textContent = t > 0 ? String(t) : '⚔️';
+      if(t > 0){
+        setTimeout(tick, 1000);
+      } else {
+        onDone();
       }
-    }, 1000);
+    };
+    setTimeout(tick, 1000);
   }
 }
 
@@ -2462,38 +2430,89 @@ window.resultNextRound = async function(){
   const day = state.day;
 
   if(round >= 10){
-    // Go to summary
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     const room = snap.val();
     const summaryData = buildSummaryData(room, day);
-    await update(ref(db,'rooms/'+state.roomCode),{
-      phase:'summary',
-      summaryData,
-      round: round
+    await update(ref(db,'rooms/'+state.roomCode),{ phase:'summary', summaryData, round });
+    return;
+  }
+
+  const nextRound = round + 1;
+  const nc = NIGHT_CONFIG[day];
+  const isNextRobber = nc.robberRounds.includes(nextRound);
+
+  if(isNextRobber){
+    // รอบโจร: เตรียม data → push 'emergency' → แสดง screen + countdown 5 วิ → push 'pile-select'
+    const snap = await get(ref(db,'rooms/'+state.roomCode));
+    const room = snap.exists() ? snap.val() : {};
+    const robberType = (room.roundRobberTypes||{})[nextRound] || 'petty';
+    const pileCount = nc.piles;
+    const robberPile = Math.ceil(Math.random()*pileCount);
+    const moneyOddsMap = { petty:0.5, gang:0.25, boss:0.0 };
+    const moneyOdds = moneyOddsMap[robberType] ?? 0.0;
+    const pileType = {};
+    for(let i=1;i<=pileCount;i++) pileType[i]=(moneyOdds>0&&Math.random()<moneyOdds)?'money':'gravel';
+    pileType[robberPile]='gravel';
+    const qCount = ROBBER_TYPE[robberType]?.questionCount||1;
+    const adjIdx = room.adjIndex||0;
+    const adjOrder = room.adjOrder||shuffleArray([...Array((ADJECTIVES_BY_DAY[day]||ADJECTIVES_BY_DAY[1]).length).keys()]);
+    const dayAdjs2 = ADJECTIVES_BY_DAY[day] || ADJECTIVES_BY_DAY[1];
+    const qAdjs = [];
+    for(let i=0;i<qCount;i++) qAdjs.push(dayAdjs2[adjOrder[(adjIdx+i)%adjOrder.length]]);
+    const questionData = qAdjs.map(a=>{
+      const q=generateQuestion(a);
+      return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type},correct:q.correct,choices:q.choices};
     });
+    const ed = {robberType,robberPile,pileType,questionData};
+
+    // reset local flags ก่อน
+    state.round = nextRound;
+    state._emergencyShown = true; // บอก listener ไม่ต้องเรียก showEmergency ซ้ำ
+    state._emergencyPushed = true;
+    state.roundRobberTypes = room.roundRobberTypes || {};
+
+    // push Firebase ให้ non-host เห็น emergency phase
+    await update(ref(db,'rooms/'+state.roomCode),{
+      phase: 'emergency',
+      round: nextRound,
+      pileChoices:{},
+      pileResults:null,
+      answers:{},
+      resultData:null,
+      emergencyData: ed,
+      adjIndex: adjIdx+qCount,
+      adjOrder: adjOrder,
+      _resolving:false,
+      _questionResolving:false
+    });
+
+    // Host แสดง emergency screen + countdown 5 วิ แล้ว push pile-select
+    showEmergencyWithCountdown(ed, async()=>{
+      await update(ref(db,'rooms/'+state.roomCode),{
+        phase: 'pile-select',
+        pileChoices: {},
+        _resolving: false
+      });
+    });
+
   } else {
-    // Next round
+    // รอบปกติ
+    state.round = nextRound;
+    state._emergencyPushed = false;
+    state._emergencyShown = false;
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'select',
-      round: round+1,
+      round: nextRound,
       pileChoices:{},
       pileResults:null,
       answers:{},
       resultData:null,
       emergencyData:null,
-      _selectReady: false,
       _resolving:false,
       _questionResolving:false
     });
-    state.round = round+1;
-    state._emergencyPushed = false;
-    // Fetch latest room to sync roundRobberTypes before showing board
-    const snap = await get(ref(db,'rooms/'+state.roomCode));
-    if(snap.exists()){
-      const r = snap.val();
-      state.roundRobberTypes = r.roundRobberTypes || {};
-    }
-    showGameBoard();
+    const snap2 = await get(ref(db,'rooms/'+state.roomCode));
+    if(snap2.exists()) state.roundRobberTypes = snap2.val().roundRobberTypes || {};
   }
 };
 
@@ -2631,7 +2650,7 @@ window.backToTitle = function(){
   _resolvingQuestions = false;
   if(state.countInterval){ clearInterval(state.countInterval); }
   unsubAll();
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, _emergencyPushed:false, countInterval:null, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, _emergencyPushed:false, _emergencyShown:false, countInterval:null, listeners:[] };
   showScreen('screen-title');
 };
 
