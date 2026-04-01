@@ -675,7 +675,7 @@
       <div class="rule-card" style="grid-column:1/-1;background:rgba(155,89,182,0.08);border-color:rgba(155,89,182,0.3)">
         <div class="icon">🦹‍♂️</div>
         <div><strong style="color:var(--accent-purple)">หัวหน้าโจร</strong> 5 ข้อ — ต้องถูก<strong>ทุกข้อ</strong><br>
-        ✅ ถูกครบ 5 ข้อ → <strong style="color:var(--accent-green)">+1,000,000฿ + ⚔️ดาบ</strong><br>
+        ✅ ถูกครบ 5 ข้อ → <strong style="color:var(--accent-green)">+1,000,000฿</strong><br>
         ❌ ผิดแม้แต่ 1 ข้อ → <strong style="color:var(--accent-red)">-1,000,000฿ + ❤️-1</strong></div>
       </div>
       <div class="rule-card" style="background:rgba(74,158,255,0.06);border-color:rgba(74,158,255,0.25)">
@@ -824,7 +824,7 @@
           <th>ผู้เล่น</th>
           <th>เงิน</th>
           <th>❤️</th>
-          <th>⚔️</th>
+          
         </tr>
       </thead>
       <tbody id="summary-tbody"></tbody>
@@ -1101,16 +1101,16 @@ const NIGHT_CONFIG = {
 
 const ROBBER_TYPE = {
   petty: { name:'โจรลูกกระจ๊อก', emoji:'🦹', badge:'petty',
-    moneyGain:300000, lossOnFail:303000, heartLoss:0.5, bonusOnWin:0, weaponOnWin:false,
+    moneyGain:300000, lossOnFail:303000, heartLoss:0.5, bonusOnWin:0,
     questionCount:1,  // 1 ข้อ
   },
   gang: { name:'กลุ่มโจรลูกกระจ๊อก', emoji:'🦹🦹', badge:'gang',
-    moneyGain:500000, lossOnFail:400000, heartLoss:0.5, bonusOnWin:400000, weaponOnWin:false,
+    moneyGain:500000, lossOnFail:400000, heartLoss:0.5, bonusOnWin:400000,
     questionCount:4,  // ตอบถูก ≥ 2/4 = +400,000 | ตอบถูก < 2 = -400,000
     passThreshold:2,  // ต้องถูกอย่างน้อย 2 ข้อ
   },
   boss: { name:'หัวหน้าโจร', emoji:'🦹‍♂️', badge:'boss',
-    moneyGain:800000, lossOnFail:1000000, heartLoss:1, bonusOnWin:1000000, weaponOnWin:true,
+    moneyGain:800000, lossOnFail:1000000, heartLoss:1, bonusOnWin:1000000,
     questionCount:5,  // ถูกทุกข้อ = +1,000,000 | ผิดแม้แต่ 1 ข้อ = -1,000,000
   }
 };
@@ -1221,7 +1221,7 @@ window.createRoom = async function(){
     day: 1,
     round: 1,
     players: {
-      [pid]: { name, avatar: AVATARS[0], money:0, hearts:5, weapons:0, isHost:true, eliminated:false, joinedAt:Date.now() }
+      [pid]: { name, avatar: AVATARS[0], money:0, hearts:5, isHost:true, eliminated:false, joinedAt:Date.now() }
     }
   };
 
@@ -1259,7 +1259,7 @@ window.joinRoom = async function(){
     state.isHost = false;
 
     await set(ref(db,'rooms/'+code+'/players/'+pid),{
-      name, avatar: AVATARS[avatarIdx], money:0, hearts:5, weapons:0, isHost:false, eliminated:false, joinedAt:Date.now()
+      name, avatar: AVATARS[avatarIdx], money:0, hearts:5, isHost:false, eliminated:false, joinedAt:Date.now()
     });
     enterLobby(code);
   } catch(e){
@@ -1596,7 +1596,6 @@ function updatePlayersStatus(){
         <div class="pname">${p.avatar} ${p.name}${isMe?' (คุณ)':''}</div>
         <div class="pmoney">${fmtMoneyAbs(p.money)}</div>
         <div class="phearts">${heartsDisplay(p.hearts)}</div>
-        ${p.weapons>0?`<div class="pweapon">⚔️ ×${p.weapons}</div>`:''}
       </div>
     `;
   }).join('');
@@ -1769,7 +1768,7 @@ function _doShowEmergency(data, onDone){
   const tauntObj = taunts[Math.floor(Math.random()*taunts.length)];
   const qCount = ROBBER_TYPE[data.robberType]?.questionCount || 1;
   const infoLine = data.robberType==='boss'
-    ? `💀 ถูกครบ 5 ข้อ: +1,000,000฿ + ⚔️ | ผิดแม้แต่ 1 ข้อ: -1,000,000฿ + ❤️-1`
+    ? `💀 ถูกครบ 5 ข้อ: +1,000,000฿ | ผิดแม้แต่ 1 ข้อ: -1,000,000฿ + ❤️-1`
     : data.robberType==='gang'
     ? `⚠️ ถูก ≥ 2/4 ข้อ: +400,000฿ | ถูก < 2 ข้อ: -400,000฿ + ❤️-0.5`
     : `🦹 ผิด: -303,000฿ + ❤️-0.5 | ถูก: รอด! | 1 ข้อ`;
@@ -2240,9 +2239,7 @@ async function resolveRobberRound(room){
     if(!p || p.eliminated) return;
     let moneyChange = 0;
     let heartChange = 0;
-    let weaponChange = 0;
     let outcome = '';
-    let useWeapon = false;
     let correctCount = 0; // declare ที่นี่เพื่อให้ใช้ได้ใน perPlayer
 
     if(pr.type === 'money'){
@@ -2255,24 +2252,15 @@ async function resolveRobberRound(room){
       correctCount = answerList.filter(a=>a && a.correct).length;
       const totalQ = answerList.length;
       const allCorrect = totalQ > 0 && correctCount === totalQ;
-      const currentWeapons = p.weapons || 0;
 
       if(robberType === 'boss'){
-        // ถูกครบ 5 ข้อ = +1,000,000 + ⚔️ | ผิดแม้แต่ 1 ข้อ = -1,000,000 + ❤️-1
         if(allCorrect){
           moneyChange = 1000000;
-          weaponChange = currentWeapons < 1 ? 1 : 0;
           outcome = 'robber_won';
         } else {
-          if(currentWeapons > 0){
-            useWeapon = true;
-            weaponChange = -1;
-            outcome = 'weapon_blocked';
-          } else {
-            moneyChange = -1000000;
-            heartChange = -1;
-            outcome = 'robber_lost';
-          }
+          moneyChange = -1000000;
+          heartChange = -1;
+          outcome = 'robber_lost';
         }
       } else if(robberType === 'gang'){
         // ถูก ≥ 2/4 = +400,000 | ถูก < 2 = -400,000 + ❤️-0.5 (ไม่มีระบบดาบ)
@@ -2313,25 +2301,22 @@ async function resolveRobberRound(room){
 
     const newMoney = (p.money||0) + moneyChange;
     const newHearts = Math.max(0,(p.hearts||5)+heartChange);
-    const newWeapons = Math.min(1, Math.max(0,(p.weapons||0)+weaponChange)); // cap ที่ 1
 
     updates[`players/${pid}/money`] = newMoney;
     updates[`players/${pid}/hearts`] = newHearts;
-    updates[`players/${pid}/weapons`] = newWeapons;
     if(newHearts <= 0) updates[`players/${pid}/eliminated`] = true;
 
     perPlayer[pid] = {
       name:p.name, avatar:p.avatar,
-      moneyChange, heartChange, weaponChange,
-      outcome, useWeapon,
-      newMoney, newHearts, newWeapons,
+      moneyChange, heartChange,
+      outcome,
+      newMoney, newHearts,
       pile: pr.pile,
       robberType, rt_name: rt.name,
       correctCount: correctCount || 0,
       lossOnFail: robberType==='boss' ? 1000000 : robberType==='gang' ? 400000 : rt.lossOnFail,
       heartLoss: rt.heartLoss,
       bonusOnWin: robberType==='boss' ? 1000000 : robberType==='gang' ? 400000 : rt.bonusOnWin,
-      weaponOnWin: rt.weaponOnWin
     };
   });
 
@@ -2464,8 +2449,6 @@ function showResult(resultData, pileResults, pileChoices){
       icon='🗡️'; title='สู้โจรชนะ!'; sub='เก่งมาก!';
     } else if(myData.outcome==='robber_lost'){
       icon='😱'; title='โดนโจรขโมย!'; sub='';
-    } else if(myData.outcome==='weapon_blocked'){
-      icon='🛡️'; title='อาวุธป้องกันได้!'; sub='รอดหวุดหวิด!';
     } else {
       icon='🪙'; title='ทองผสมกรวด'; sub='';
     }
@@ -2492,7 +2475,6 @@ function showResult(resultData, pileResults, pileChoices){
       'gravel_wrong': '🪙 คุณตอบผิด ไม่สามารถแยกทองออกจากกรวดได้',
       'robber_won': '🗡️ คุณตอบถูก ต้านทานโจรได้สำเร็จ!',
       'robber_lost': '😱 คุณตอบผิด เงินตกเป็นของโจร!',
-      'weapon_blocked': '🛡️ อาวุธช่วยป้องกัน ไม่เสียเงินและหัวใจ!',
       'gravel_safe': '🪙 ทองผสมกรวด — ผ่านไป'
     };
     rows += `<div style="padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:0.9rem;color:var(--text-dim);margin-bottom:8px">${reasonMap[o]||''}</div>`;
@@ -2542,15 +2524,7 @@ function showResult(resultData, pileResults, pileChoices){
         rows += `<div class="result-row"><span class="label">📊 ตอบถูก</span><span class="value gain">${myData.correctCount||0} / 4 ข้อ ✅</span></div>`;
       }
       if(mc > 0) rows += `<div class="result-row"><span class="label">🎁 โบนัสสู้ชนะ</span><span class="value gain">+${mc.toLocaleString()} ฿</span></div>`;
-      if(myData.weaponChange > 0){
-        rows += `<div class="result-row"><span class="label">⚔️ ได้รับดาบ!</span><span class="value gain">+1 ชิ้น (ป้องกันโจรได้ 1 ครั้ง)</span></div>`;
-      } else if(robberKey === 'boss' && myData.newWeapons >= 1){
-        rows += `<div class="result-row"><span class="label">⚔️ ดาบเต็มแล้ว</span><span class="value neutral">มีดาบอยู่แล้ว 1 ชิ้น</span></div>`;
-      }
-    } else if(o === 'weapon_blocked'){
-      rows += `<div class="result-row"><span class="label">⚔️ ดาบปกป้องคุณ!</span><span class="value gain">ไม่เสียเงินและหัวใจ</span></div>`;
-      rows += `<div class="result-row"><span class="label">💨 ดาบหายไปแล้ว</span><span class="value neutral">-1 ชิ้น</span></div>`;
-    } else if(o === 'gravel_correct'){
+     else if(o === 'gravel_correct'){
       rows += `<div class="result-row"><span class="label">✅ ผันถูก</span><span class="value gain">+200,000 ฿ ค่าแยกทอง</span></div>`;
     } else if(o === 'gravel_wrong'){
       rows += `<div class="result-row"><span class="label">❌ ผันผิด</span><span class="value neutral">ไม่ได้รับเงิน</span></div>`;
@@ -2576,7 +2550,6 @@ function showResult(resultData, pileResults, pileChoices){
       </div>`;
 
     rows += `<div class="result-row" style="margin-top:6px"><span class="label">❤️ หัวใจ</span><span class="value">${heartsDisplay(myData.newHearts||5)}</span></div>`;
-    if((myData.newWeapons||0) > 0) rows += `<div class="result-row"><span class="label">⚔️ อาวุธ</span><span class="value neutral">${myData.newWeapons} ชิ้น</span></div>`;
     breakdown.innerHTML = rows;
   }
 
@@ -2719,7 +2692,7 @@ function showSummary(data){
       <td>${p.avatar} ${p.name}</td>
       <td>${fmtMoneyAbs(p.money)}</td>
       <td>${heartsDisplay(p.hearts)}</td>
-      <td>${p.weapons>0?'⚔️×'+p.weapons:'—'}</td>
+      <td>
     </tr>
   `).join('');
 
