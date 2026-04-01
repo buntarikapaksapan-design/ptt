@@ -1667,26 +1667,14 @@ async function resolveRound(room){
   const activePlayers = Object.entries(room.players).filter(([pid,p])=>!p.eliminated);
   const pileCount = nc.piles;
 
-  // รอบโจร: ใช้ข้อมูลจาก emergencyData ที่เตรียมไว้แล้ว
+  // รอบโจร: ทุกกองเป็นกองโจร ทุกคนต้องผัน
   if(isRobberRound && room.emergencyData){
     const ed = room.emergencyData;
-    console.log('[resolveRound] robberPile='+ed.robberPile+' pileType='+JSON.stringify(ed.pileType)+' pileChoices='+JSON.stringify(room.pileChoices));
     const newPileResults = {};
     activePlayers.forEach(([pid,p])=>{
       const chosen = pileChoices[pid];
-      if(chosen === undefined || chosen === null){
-        // ผู้เล่นยังไม่ได้เลือกกอง — skip
-        console.warn(`[resolveRound] pid=${pid} has no pileChoice, skipping`);
-        return;
-      }
-      const chosenNum = Number(chosen);
-      const robberPileNum = Number(ed.robberPile);
-      const chosenStr = String(chosenNum);
-      const robberPileStr = String(robberPileNum);
-      const type = ed.pileType?.[chosenStr] || ed.pileType?.[chosenNum] || 'gravel';
-      const hitRobber = chosenNum === robberPileNum;
-      const needsQuestion = (type === 'gravel') || hitRobber;
-      newPileResults[pid] = { pile:chosenNum, type, hitRobber, needsQuestion };
+      if(chosen === undefined || chosen === null) return;
+      newPileResults[pid] = { pile:Number(chosen), type:'gravel', hitRobber:true, needsQuestion:true };
     });
     await update(ref(db,'rooms/'+state.roomCode),{
       phase: 'question',
@@ -2200,7 +2188,7 @@ async function waitAndReveal(){
     const room = snap.val();
     const pileResults = room.pileResults || {};
     const answers = room.answers || {};
-    const questionPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.needsQuestion===true);
+    const questionPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.needsQuestion===true || pr.needsQuestion==='true');
 
     if(questionPlayers.length === 0){
       clearInterval(pollInterval); _resolvingQuestions=false;
@@ -2646,13 +2634,6 @@ window.resultNextRound = async function(){
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     const room = snap.exists() ? snap.val() : {};
     const robberType = (room.roundRobberTypes||{})[nextRound] || 'petty';
-    const pileCount = nc.piles;
-    const robberPile = Math.ceil(Math.random()*pileCount);
-    const moneyOddsMap = { petty:0.5, gang:0.25, boss:0.0 };
-    const moneyOdds = moneyOddsMap[robberType] ?? 0.0;
-    const pileType = {};
-    for(let i=1;i<=pileCount;i++) pileType[i]=(moneyOdds>0&&Math.random()<moneyOdds)?'money':'gravel';
-    pileType[robberPile]='gravel';
     const qCount = ROBBER_TYPE[robberType]?.questionCount||1;
     const adjIdx = room.adjIndex||0;
     const adjOrder = room.adjOrder||shuffleArray([...Array((ADJECTIVES_BY_DAY[day]||ADJECTIVES_BY_DAY[1]).length).keys()]);
@@ -2663,7 +2644,7 @@ window.resultNextRound = async function(){
       const q=generateQuestion(a);
       return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type,negPresent:a.negPresent,_kanaCorrect:q.adj._kanaCorrect},correct:q.correct,choices:q.choices};
     });
-    const ed = {robberType,robberPile,pileType,questionData};
+    const ed = {robberType, questionData};
 
     // reset local flags ก่อน
     state.round = nextRound;
