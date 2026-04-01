@@ -994,60 +994,47 @@ function buildChoiceDisplay(choiceStr, adj){
   const reading = adj.reading || '';
   const rBase = reading.endsWith('い') ? reading.slice(0,-1) : reading;
   const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
-  const negP = adj.negPresent || '';
+  const isIAdj = adj.type === 'i';
 
   const hasDes = choiceStr.endsWith('です');
   const base = hasDes ? choiceStr.slice(0,-2) : choiceStr;
   const des = hasDes ? 'です' : '';
-  const kanaReading = choiceStr;
 
-  // correct form — ตรวจจาก negPresent โดยตรง (รองรับ irregular)
-  // negPresent เช่น よくない, かっこよくない, 大きくない, あんぜんじゃない
-  // base จะเป็น kana เสมอ (จาก generateQuestion)
-  const isIAdj = adj.type === 'i';
+  // ใช้ _kanaCorrect ที่ generateQuestion คำนวณไว้ (รองรับ irregular เช่น よくない)
+  const kanaCorrect = adj._kanaCorrect ||
+    (isIAdj ? rBase + 'くない' : reading + 'じゃない');
 
-  // สร้าง kana version ของ negPresent สำหรับเปรียบเทียบ
-  const negPKana = (() => {
-    if(/^[ぁ-んァ-ンー]+$/.test(negP)) return negP; // kana ล้วนแล้ว
-    // มีคันจิ — แทน stem ด้วย rBase
-    if(negP.endsWith('くない')) return rBase + 'くない';
-    if(negP.endsWith('じゃない')) return reading + 'じゃない';
-    return rBase + 'くない';
-  })();
-
-  if(base === negPKana || base === negP){
+  // === correct answer ===
+  if(base === kanaCorrect){
     if(isIAdj){
-      // display: ใช้ word + suffix จาก negPresent
-      // irregular เช่น いい+よくない → display='いよくない' ❌ ต้องใช้ negPresent ตรงๆ
-      // แต่ negPresent อาจมีคันจิ เช่น 大きくない ต้องแทนด้วย wordBase+くない
-      // irregular: negPKana ≠ rBase+くない → แสดงด้วย negPKana (kana ล้วน) + des
-      const regularKana = rBase + 'くない';
-      if(negPKana === regularKana){
+      const kanaBase = kanaCorrect.endsWith('くない') ? kanaCorrect.slice(0,-4) : kanaCorrect;
+      if(kanaBase === rBase){
         // regular: แทน kana stem ด้วย kanji
-        return { display: wordBase + 'くない' + des, reading: negPKana + des };
+        return { display: wordBase + 'くない' + des, reading: kanaCorrect + des };
       } else {
-        // irregular (เช่น いい→よくない, かっこいい→かっこよくない): แสดง kana ล้วน ไม่ต้องแปลง
-        return { display: negPKana + des, reading: negPKana + des };
+        // irregular (よくない, かっこよくない): แสดง kana ล้วน
+        return { display: kanaCorrect + des, reading: kanaCorrect + des };
       }
     } else {
       return { display: word + 'じゃない' + des, reading: reading + 'じゃない' + des };
     }
   }
 
-  // distractor
+  // === distractor ===
   const suffixes = ['じゃなかった','くなかった','じゃない','くない','ない','くて'];
   for(const suf of suffixes){
     if(base.endsWith(suf)){
+      const stem = base.slice(0, base.length - suf.length);
       const kanjiStem = isIAdj ? wordBase : word;
-      const kanaStem = isIAdj ? rBase : reading;
-      // reading ในวงเล็บ = kana stem + suffix + des (ตรงกับ display)
-      const kanaDisplay = kanaStem + suf + des;
-      return { display: kanjiStem + suf + des, reading: kanaDisplay };
+      const kanaStem  = isIAdj ? rBase    : reading;
+      if(stem === rBase || stem === reading || stem === wordBase || stem === word){
+        return { display: kanjiStem + suf + des, reading: kanaStem + suf + des };
+      }
+      // irregular stem (เช่น よ) — แสดง kana ล้วน
+      return { display: base + des, reading: base + des };
     }
   }
-  const kanjiStem = isIAdj ? wordBase : word;
-  const kanaStem = isIAdj ? rBase : reading;
-  return { display: kanjiStem + des || choiceStr, reading: kanaStem + des || kanaReading };
+  return { display: base + des, reading: base + des };
 }
 
 // Generate question — correct = kana negPresent + です
@@ -1079,7 +1066,9 @@ function generateQuestion(adj){
   }
 
   const correct = kanaCorrect + 'です';
-  const distractors = genDistractors(adj, kanaCorrect);
+  // เก็บ kanaCorrect ไว้ใน adj เพื่อใช้ใน buildChoiceDisplay
+  const adjWithKana = { ...adj, _kanaCorrect: kanaCorrect };
+  const distractors = genDistractors(adjWithKana, kanaCorrect);
   const wrong = distractors
     .filter(d => d != null)
     .map(d => d.endsWith('です') ? d : d + 'です');
@@ -1088,7 +1077,7 @@ function generateQuestion(adj){
 
   const choices = [correct, ...wrong].filter(Boolean);
   for(let i=choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}
-  return { adj, correct, choices };
+  return { adj: adjWithKana, correct, choices };
 }
 
 // ===== NIGHT / DAY CONFIG =====
@@ -1376,6 +1365,7 @@ function enterLobby(code){
       }
       const actRobber = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
       const allChoseRobber = actRobber.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
+      console.log('[pile-select] isHost='+state.isHost+' actRobber='+actRobber.length+' allChose='+allChoseRobber+' pileChoices='+JSON.stringify(room.pileChoices)+' _resolving='+room._resolving);
       if(allChoseRobber && actRobber.length > 0 && state.isHost){
         runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
           if(cur===true) return; return true;
@@ -1728,7 +1718,7 @@ async function resolveRound(room){
   const dayAdjs = ADJECTIVES_BY_DAY[room.day||1] || ADJECTIVES_BY_DAY[1];
   const pickedAdj = dayAdjs[adjOrder[adjIdx % adjOrder.length]];
   const q = generateQuestion(pickedAdj);
-  const normalQuestionData = [{ adj:{word:pickedAdj.word,reading:pickedAdj.reading,meaning:pickedAdj.meaning,type:pickedAdj.type}, correct:q.correct, choices:q.choices }];
+  const normalQuestionData = [{ adj:{word:pickedAdj.word,reading:pickedAdj.reading,meaning:pickedAdj.meaning,type:pickedAdj.type,negPresent:pickedAdj.negPresent,_kanaCorrect:q.adj._kanaCorrect}, correct:q.correct, choices:q.choices }];
   await update(ref(db,'rooms/'+state.roomCode),{ adjIndex: adjIdx+1, adjOrder });
 
   // Per-player pile result (รอบปกติเท่านั้น)
@@ -2675,7 +2665,7 @@ window.resultNextRound = async function(){
     for(let i=0;i<qCount;i++) qAdjs.push(dayAdjs2[adjOrder[(adjIdx+i)%adjOrder.length]]);
     const questionData = qAdjs.map(a=>{
       const q=generateQuestion(a);
-      return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type},correct:q.correct,choices:q.choices};
+      return{adj:{word:a.word,reading:a.reading,meaning:a.meaning,type:a.type,negPresent:a.negPresent,_kanaCorrect:q.adj._kanaCorrect},correct:q.correct,choices:q.choices};
     });
     const ed = {robberType,robberPile,pileType,questionData};
 
