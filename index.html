@@ -1297,7 +1297,6 @@ function enterLobby(code){
     if(!snap.exists()) return;
     const room = snap.val();
     const phase = room.phase;
-    console.log('[LISTENER] phase='+phase+' round='+room.round+' isHost='+state.isHost);
 
     // Sync state
     state.players = room.players || {};
@@ -1329,7 +1328,8 @@ function enterLobby(code){
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
-      state._emergencyShown = false; // reset ทุกครั้งที่เข้า select
+      state._emergencyShown = false;
+      state._robberResolving = false;
 
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
@@ -1366,16 +1366,10 @@ function enterLobby(code){
       }
       const actRobber = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
       const allChoseRobber = actRobber.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
-      console.log('[pile-select] isHost='+state.isHost+' actRobber='+actRobber.length+' allChose='+allChoseRobber+' pileChoices='+JSON.stringify(room.pileChoices)+' _resolving='+room._resolving);
-      if(allChoseRobber && actRobber.length > 0 && state.isHost){
-        runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
-          if(cur===true) return; return true;
-        }).then(async r=>{
-          if(r.committed){
-            // fetch fresh snapshot เพื่อให้ pileChoices และ emergencyData ครบถ้วน
-            const freshSnap = await get(ref(db,'rooms/'+code));
-            if(freshSnap.exists()) resolveRound(freshSnap.val());
-          }
+      if(allChoseRobber && actRobber.length > 0 && state.isHost && !state._robberResolving){
+        state._robberResolving = true;
+        get(ref(db,'rooms/'+code)).then(freshSnap=>{
+          if(freshSnap.exists()) resolveRound(freshSnap.val());
         });
       }
     }
@@ -1676,6 +1670,7 @@ async function resolveRound(room){
   // รอบโจร: ใช้ข้อมูลจาก emergencyData ที่เตรียมไว้แล้ว
   if(isRobberRound && room.emergencyData){
     const ed = room.emergencyData;
+    console.log('[resolveRound] robberPile='+ed.robberPile+' pileType='+JSON.stringify(ed.pileType)+' pileChoices='+JSON.stringify(room.pileChoices));
     const newPileResults = {};
     activePlayers.forEach(([pid,p])=>{
       const chosen = pileChoices[pid];
