@@ -1329,10 +1329,11 @@ function enterLobby(code){
 
     // ===== GAME PHASES =====
     if(phase === 'select'){
-      // select = รอบปกติเท่านั้น (รอบโจรใช้ emergency → pile-select แทน)
+      // select = รอบปกติเท่านั้น — reset flags รวมถึง emergency
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
+      state._emergencyShown = false; // reset ทุกครั้งที่เข้า select
 
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
@@ -1354,6 +1355,7 @@ function enterLobby(code){
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
+      state._emergencyShown = false; // reset เผื่อรอบถัดไปเป็นโจรอีก
 
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
@@ -2249,16 +2251,14 @@ async function resolveRobberRound(room){
     if(pr.type === 'money'){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
-    } else if(pr.hitRobber){
+    } else if(pr.hitRobber === true || pr.hitRobber === 'true'){
       const ans = answers[pid];
-      // Firebase แปลง array → object {0:{...},1:{...}} ต้องใช้ Object.values()
       const rawAnswers = ans?.answers || {};
       const answerList = Array.isArray(rawAnswers) ? rawAnswers : Object.values(rawAnswers);
       correctCount = answerList.filter(a=>a && a.correct).length;
       const totalQ = answerList.length;
       const allCorrect = totalQ > 0 && correctCount === totalQ;
       const currentWeapons = p.weapons || 0;
-      console.log(`[HIT ROBBER] robberType=${robberType} totalQ=${totalQ} correctCount=${correctCount} allCorrect=${allCorrect} answerList=`, answerList);
 
       if(robberType === 'boss'){
         // ถูกครบ 5 ข้อ = +1,000,000 + ⚔️ | ผิดแม้แต่ 1 ข้อ = -1,000,000 + ❤️-1
@@ -2301,7 +2301,6 @@ async function resolveRobberRound(room){
       }
     } else if(isRobberRound && pr.needsQuestion){
       const ans = answers[pid];
-      console.log(`[GRAVEL ROBBER ROUND] hitRobber=${pr.hitRobber} needsQuestion=${pr.needsQuestion} ans=`, ans);
       const correct = ans?.allCorrect || false;
       outcome = correct ? 'gravel_correct' : 'gravel_wrong';
       moneyChange = correct ? 200000 : 0; // รอบโจร เจอทองผสมกรวด ตอบถูก +200,000
