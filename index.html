@@ -2248,6 +2248,7 @@ async function resolveRobberRound(room){
     let useWeapon = false;
     let correctCount = 0; // declare ที่นี่เพื่อให้ใช้ได้ใน perPlayer
 
+    console.log(`[RESOLVE pid=${pid}]`, JSON.stringify({hitRobber: pr.hitRobber, type: pr.type, needsQuestion: pr.needsQuestion, robberType, isRobberRound}));
     if(pr.type === 'money'){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
