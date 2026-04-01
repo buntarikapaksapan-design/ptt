@@ -273,7 +273,6 @@
   .pstatus-card .pname { font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pstatus-card .pmoney { font-size: 0.9rem; color: var(--accent-gold); font-weight: 700; }
   .pstatus-card .phearts { font-size: 0.8rem; margin-top: 2px; }
-  .pstatus-card .pweapon { font-size: 0.75rem; margin-top: 2px; color: var(--accent-blue); }
 
   /* Piles area */
   .piles-section { text-align: center; margin-bottom: 20px; }
@@ -591,14 +590,6 @@
   }
   #toast.show { opacity: 1; }
 
-  /* Weapon used animation */
-  .weapon-flash {
-    position: fixed; inset: 0; z-index: 500;
-    background: radial-gradient(circle, rgba(74,158,255,0.6), transparent 70%);
-    pointer-events: none;
-    animation: weaponFlash 0.8s ease-out forwards;
-  }
-  @keyframes weaponFlash { 0%{opacity:1} 100%{opacity:0} }
 </style>
 </head>
 <body>
@@ -677,10 +668,6 @@
         <div><strong style="color:var(--accent-purple)">หัวหน้าโจร</strong> 5 ข้อ — ต้องถูก<strong>ทุกข้อ</strong><br>
         ✅ ถูกครบ 5 ข้อ → <strong style="color:var(--accent-green)">+1,000,000฿</strong><br>
         ❌ ผิดแม้แต่ 1 ข้อ → <strong style="color:var(--accent-red)">-1,000,000฿ + ❤️-1</strong></div>
-      </div>
-      <div class="rule-card" style="background:rgba(74,158,255,0.06);border-color:rgba(74,158,255,0.25)">
-        <div class="icon">⚔️</div>
-        <div><strong style="color:var(--accent-blue)">ดาบ</strong> — เก็บได้สูงสุด 1 ชิ้น<br>เมื่อเจอโจรแล้วตอบผิด → <strong>ดาบปกป้องไม่เสียเงินและหัวใจ</strong> แต่ดาบจะหายทันที</div>
       </div>
       <div class="rule-card">
         <div class="icon">❤️</div>
@@ -1795,7 +1782,7 @@ function _doShowEmergency(data, onDone){
   const tick = ()=>{
     t--;
     const el = document.getElementById('emg-countdown');
-    if(el) el.textContent = t > 0 ? String(t) : '⚔️';
+    if(el) el.textContent = t > 0 ? String(t) : '🏃';
     if(t > 0){
       setTimeout(tick, 1000);
     } else if(onDone){
@@ -2263,7 +2250,7 @@ async function resolveRobberRound(room){
           outcome = 'robber_lost';
         }
       } else if(robberType === 'gang'){
-        // ถูก ≥ 2/4 = +400,000 | ถูก < 2 = -400,000 + ❤️-0.5 (ไม่มีระบบดาบ)
+        // ถูก ≥ 2/4 = +400,000 | ถูก < 2 = -400,000 + ❤️-0.5
         const passed = correctCount >= (rt.passThreshold || 2);
         if(passed){
           moneyChange = 400000;
@@ -2274,7 +2261,7 @@ async function resolveRobberRound(room){
           outcome = 'robber_lost';
         }
       } else {
-        // petty: ถูก = รอด | ผิด = -303,000 + ❤️-0.5 (ไม่มีระบบดาบ)
+        // petty: ถูก = รอด | ผิด = -303,000 + ❤️-0.5
         if(allCorrect){
           moneyChange = rt.bonusOnWin || 0;
           outcome = 'robber_won';
