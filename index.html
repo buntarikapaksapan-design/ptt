@@ -959,15 +959,15 @@ function genDistractors(adj, kanaCorrect){
   const r = adj.reading;
   const rBase = r.endsWith('い') ? r.slice(0,-1) : r;
 
-  // สำหรับ irregular い-adj (เช่น いい→よくない): ใช้ base จาก kanaCorrect
-  // kanaCorrect = 'よくない' → base = 'よ'
+  // base ของ kanaCorrect เช่น よくない→よ, おおきくない→おおき, あんぜんじゃない→あんぜん
   const correctBase = kanaCorrect.endsWith('くない') ? kanaCorrect.slice(0,-4) :
                       kanaCorrect.endsWith('じゃない') ? kanaCorrect.slice(0,-4) : rBase;
 
   if(adj.type === 'i'){
-    distractors.push(correctBase + 'じゃない');  // สับสนกับ な-adj
-    distractors.push(r + 'ない');               // ลืมเปลี่ยน い→く (เช่น いいない)
-    distractors.push(correctBase + 'くなかった'); // past tense
+    const regularBase = rBase; // base ปกติจาก reading เช่น おおき, やす
+    distractors.push(correctBase + 'じゃない');   // ผิด type: よじゃない, おおきじゃない
+    distractors.push(rBase + 'くない');           // ใช้ regular stem แทน irregular: いくない (ผิด)
+    distractors.push(correctBase + 'くなかった'); // past tense: よくなかった (ผิดบริบท)
   } else {
     distractors.push(r + 'くない');         // สับสนกับ い-adj
     distractors.push(r + 'ない');           // ลืมใส่ じゃ
@@ -1016,15 +1016,21 @@ function buildChoiceDisplay(choiceStr, adj){
   })();
 
   if(base === negPKana || base === negP){
-    // correct answer — แสดงด้วย word (คันจิ) + suffix จาก negPresent
     if(isIAdj){
-      // irregular: suffix คือทุกอย่างหลัง reading stem
-      // เช่น よくない → suffix = よくない (ทั้งหมด ถ้า word='いい')
-      // เช่น かっこよくない → suffix = よくない (ถ้า word='かっこいい', wordBase='かっこい')
-      const suffix = negPKana.startsWith(rBase) ? negPKana.slice(rBase.length) : negPKana;
-      return { display: wordBase + suffix + des, reading: kanaReading };
+      // display: ใช้ word + suffix จาก negPresent
+      // irregular เช่น いい+よくない → display='いよくない' ❌ ต้องใช้ negPresent ตรงๆ
+      // แต่ negPresent อาจมีคันจิ เช่น 大きくない ต้องแทนด้วย wordBase+くない
+      // irregular: negPKana ≠ rBase+くない → แสดงด้วย negPKana (kana ล้วน) + des
+      const regularKana = rBase + 'くない';
+      if(negPKana === regularKana){
+        // regular: แทน kana stem ด้วย kanji
+        return { display: wordBase + 'くない' + des, reading: negPKana + des };
+      } else {
+        // irregular (เช่น いい→よくない, かっこいい→かっこよくない): แสดง kana ล้วน ไม่ต้องแปลง
+        return { display: negPKana + des, reading: negPKana + des };
+      }
     } else {
-      return { display: word + 'じゃない' + des, reading: kanaReading };
+      return { display: word + 'じゃない' + des, reading: reading + 'じゃない' + des };
     }
   }
 
@@ -1032,16 +1038,16 @@ function buildChoiceDisplay(choiceStr, adj){
   const suffixes = ['じゃなかった','くなかった','じゃない','くない','ない','くて'];
   for(const suf of suffixes){
     if(base.endsWith(suf)){
-      const stem = base.slice(0, base.length - suf.length);
       const kanjiStem = isIAdj ? wordBase : word;
-      if(stem === rBase || stem === reading || stem === word || stem === wordBase || stem === ''){
-        return { display: kanjiStem + suf + des, reading: kanaReading };
-      }
-      return { display: kanjiStem + suf + des, reading: kanaReading };
+      const kanaStem = isIAdj ? rBase : reading;
+      // reading ในวงเล็บ = kana stem + suffix + des (ตรงกับ display)
+      const kanaDisplay = kanaStem + suf + des;
+      return { display: kanjiStem + suf + des, reading: kanaDisplay };
     }
   }
   const kanjiStem = isIAdj ? wordBase : word;
-  return { display: kanjiStem + des || choiceStr, reading: kanaReading };
+  const kanaStem = isIAdj ? rBase : reading;
+  return { display: kanjiStem + des || choiceStr, reading: kanaStem + des || kanaReading };
 }
 
 // Generate question — correct = kana negPresent + です
@@ -1346,7 +1352,12 @@ function enterLobby(code){
       if(allChoseNormal && actNormal.length > 0 && state.isHost){
         runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
           if(cur===true) return; return true;
-        }).then(r=>{ if(r.committed) resolveRound(room); });
+        }).then(async r=>{
+          if(r.committed){
+            const freshSnap = await get(ref(db,'rooms/'+code));
+            if(freshSnap.exists()) resolveRound(freshSnap.val());
+          }
+        });
       }
     }
 
@@ -1368,7 +1379,13 @@ function enterLobby(code){
       if(allChoseRobber && actRobber.length > 0 && state.isHost){
         runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
           if(cur===true) return; return true;
-        }).then(r=>{ if(r.committed) resolveRound(room); });
+        }).then(async r=>{
+          if(r.committed){
+            // fetch fresh snapshot เพื่อให้ pileChoices และ emergencyData ครบถ้วน
+            const freshSnap = await get(ref(db,'rooms/'+code));
+            if(freshSnap.exists()) resolveRound(freshSnap.val());
+          }
+        });
       }
     }
 
@@ -1671,13 +1688,19 @@ async function resolveRound(room){
     const newPileResults = {};
     activePlayers.forEach(([pid,p])=>{
       const chosen = pileChoices[pid];
-      // Firebase เก็บ key เป็น string — ต้อง coerce ทั้งคู่ให้ตรงกัน
-      const chosenStr = String(chosen);
-      const robberPileStr = String(ed.robberPile);
-      const type = ed.pileType?.[chosenStr] || ed.pileType?.[chosen] || 'gravel';
-      const hitRobber = chosenStr === robberPileStr;
+      if(chosen === undefined || chosen === null){
+        // ผู้เล่นยังไม่ได้เลือกกอง — skip
+        console.warn(`[resolveRound] pid=${pid} has no pileChoice, skipping`);
+        return;
+      }
+      const chosenNum = Number(chosen);
+      const robberPileNum = Number(ed.robberPile);
+      const chosenStr = String(chosenNum);
+      const robberPileStr = String(robberPileNum);
+      const type = ed.pileType?.[chosenStr] || ed.pileType?.[chosenNum] || 'gravel';
+      const hitRobber = chosenNum === robberPileNum;
       const needsQuestion = (type === 'gravel') || hitRobber;
-      newPileResults[pid] = { pile:chosen, type, hitRobber, needsQuestion };
+      newPileResults[pid] = { pile:chosenNum, type, hitRobber, needsQuestion };
     });
     await update(ref(db,'rooms/'+state.roomCode),{
       phase: 'question',
@@ -2248,7 +2271,6 @@ async function resolveRobberRound(room){
     let useWeapon = false;
     let correctCount = 0; // declare ที่นี่เพื่อให้ใช้ได้ใน perPlayer
 
-    console.log(`[RESOLVE pid=${pid}]`, JSON.stringify({hitRobber: pr.hitRobber, type: pr.type, needsQuestion: pr.needsQuestion, robberType, isRobberRound}));
     if(pr.type === 'money'){
       moneyChange = isRobberRound ? rt.moneyGain : MONEY_NORMAL;
       outcome = isRobberRound ? 'money_robber_fled' : 'money';
