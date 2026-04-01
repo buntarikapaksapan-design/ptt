@@ -2524,7 +2524,7 @@ function showResult(resultData, pileResults, pileChoices){
         rows += `<div class="result-row"><span class="label">📊 ตอบถูก</span><span class="value gain">${myData.correctCount||0} / 4 ข้อ ✅</span></div>`;
       }
       if(mc > 0) rows += `<div class="result-row"><span class="label">🎁 โบนัสสู้ชนะ</span><span class="value gain">+${mc.toLocaleString()} ฿</span></div>`;
-     else if(o === 'gravel_correct'){
+    } else if(o === 'gravel_correct'){
       rows += `<div class="result-row"><span class="label">✅ ผันถูก</span><span class="value gain">+200,000 ฿ ค่าแยกทอง</span></div>`;
     } else if(o === 'gravel_wrong'){
       rows += `<div class="result-row"><span class="label">❌ ผันผิด</span><span class="value neutral">ไม่ได้รับเงิน</span></div>`;
