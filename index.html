@@ -863,6 +863,8 @@
       <div id="punishment-text" style="font-size:0.9rem;color:#ddd"></div>
     </div>
 
+    <div id="final-qa-area"></div>
+
     <button class="btn btn-ghost" style="width:100%;margin-top:12px" onclick="backToTitle()">🏠 กลับหน้าหลัก</button>
   </div>
 </div>
@@ -992,43 +994,54 @@ function buildChoiceDisplay(choiceStr, adj){
   const reading = adj.reading || '';
   const rBase = reading.endsWith('い') ? reading.slice(0,-1) : reading;
   const wordBase = word.endsWith('い') ? word.slice(0,-1) : word;
+  const negP = adj.negPresent || '';
 
   const hasDes = choiceStr.endsWith('です');
   const base = hasDes ? choiceStr.slice(0,-2) : choiceStr;
   const des = hasDes ? 'です' : '';
-  const kanaReading = choiceStr; // วงเล็บใช้ kana ล้วนเสมอ
+  const kanaReading = choiceStr;
 
-  // เลือก display stem สำหรับ kanji
-  const kanjiStem = (adj.type==='i') ? wordBase : word;
+  // correct form — ตรวจจาก negPresent โดยตรง (รองรับ irregular)
+  // negPresent เช่น よくない, かっこよくない, 大きくない, あんぜんじゃない
+  // base จะเป็น kana เสมอ (จาก generateQuestion)
+  const isIAdj = adj.type === 'i';
 
-  // correct form
-  const kanaCorrect = adj.type==='i' ? rBase+'くない' : reading+'じゃない';
-  if(base === kanaCorrect){
-    return { display: kanjiStem + (adj.type==='i' ? 'くない' : 'じゃない') + des, reading: kanaReading };
+  // สร้าง kana version ของ negPresent สำหรับเปรียบเทียบ
+  const negPKana = (() => {
+    if(/^[ぁ-んァ-ンー]+$/.test(negP)) return negP; // kana ล้วนแล้ว
+    // มีคันจิ — แทน stem ด้วย rBase
+    if(negP.endsWith('くない')) return rBase + 'くない';
+    if(negP.endsWith('じゃない')) return reading + 'じゃない';
+    return rBase + 'くない';
+  })();
+
+  if(base === negPKana || base === negP){
+    // correct answer — แสดงด้วย word (คันจิ) + suffix จาก negPresent
+    if(isIAdj){
+      // irregular: suffix คือทุกอย่างหลัง reading stem
+      // เช่น よくない → suffix = よくない (ทั้งหมด ถ้า word='いい')
+      // เช่น かっこよくない → suffix = よくない (ถ้า word='かっこいい', wordBase='かっこい')
+      const suffix = negPKana.startsWith(rBase) ? negPKana.slice(rBase.length) : negPKana;
+      return { display: wordBase + suffix + des, reading: kanaReading };
+    } else {
+      return { display: word + 'じゃない' + des, reading: kanaReading };
+    }
   }
 
-  // negPresent fallback (ข้อมูลเก่าจาก Firebase)
-  const negP = adj.negPresent || '';
-  const negPBase = negP.endsWith('です') ? negP.slice(0,-2) : negP;
-  if(base === negPBase || base === negP){
-    return { display: kanjiStem + (adj.type==='i' ? 'くない' : 'じゃない') + des, reading: kanaReading };
-  }
-
-  // distractor — แทน stem kana ด้วย kanji เสมอ
+  // distractor
   const suffixes = ['じゃなかった','くなかった','じゃない','くない','ない','くて'];
   for(const suf of suffixes){
     if(base.endsWith(suf)){
       const stem = base.slice(0, base.length - suf.length);
+      const kanjiStem = isIAdj ? wordBase : word;
       if(stem === rBase || stem === reading || stem === word || stem === wordBase || stem === ''){
-        // stem match → แสดงคันจิ
         return { display: kanjiStem + suf + des, reading: kanaReading };
       }
-      // stem ไม่ match — ยังคงแสดงคันจิ base + suffix
       return { display: kanjiStem + suf + des, reading: kanaReading };
     }
   }
-  // final fallback: ยังคงใช้คันจิ
-  return { display: kanjiStem + base.slice(rBase.length || reading.length) + des || choiceStr, reading: kanaReading };
+  const kanjiStem = isIAdj ? wordBase : word;
+  return { display: kanjiStem + des || choiceStr, reading: kanaReading };
 }
 
 // Generate question — correct = kana negPresent + です
@@ -1358,10 +1371,17 @@ function enterLobby(code){
     }
 
     if(phase === 'emergency'){
-      // แสดง emergency screen — listener จะ fire ซ้ำได้แต่ guard ด้วย _emergencyShown
       if(!state._emergencyShown){
         state._emergencyShown = true;
-        showEmergency(room.emergencyData);
+        if(state.isHost){
+          // Host จัดการ countdown ใน resultNextRound แล้ว — ถ้า screen ยังไม่ขึ้นก็แสดง
+          if(!document.getElementById('screen-emergency').classList.contains('active')){
+            showEmergency(room.emergencyData);
+          }
+        } else {
+          // Non-host: แสดง emergency screen และรอ host push pile-select
+          showEmergency(room.emergencyData);
+        }
       }
     }
 
@@ -1730,7 +1750,13 @@ const ROBBER_TAUNTS = {
 
 function showEmergency(data){
   if(!data) return;
-  _doShowEmergency(data, null); // non-host: แสดงแต่ไม่มี countdown callback
+  if(state.isHost){
+    // Host: countdown แบบ visual เฉยๆ ไม่ต้อง push (resultNextRound push แล้ว)
+    _doShowEmergency(data, null);
+  } else {
+    // Non-host: countdown visual เฉยๆ รอ host push pile-select
+    _doShowEmergency(data, null);
+  }
 }
 
 function showEmergencyWithCountdown(data, onDone){
@@ -1766,21 +1792,19 @@ function _doShowEmergency(data, onDone){
   `;
   showScreen('screen-emergency');
 
-  // countdown เฉพาะ Host (หรือถ้ามี callback) — ใช้ตัวแปร local ป้องกัน race
-  if(onDone){
-    let t = 5;
-    const tick = ()=>{
-      t--;
-      const el = document.getElementById('emg-countdown');
-      if(el) el.textContent = t > 0 ? String(t) : '⚔️';
-      if(t > 0){
-        setTimeout(tick, 1000);
-      } else {
-        onDone();
-      }
-    };
-    setTimeout(tick, 1000);
-  }
+  // countdown visual สำหรับทุกคน
+  let t = 5;
+  const tick = ()=>{
+    t--;
+    const el = document.getElementById('emg-countdown');
+    if(el) el.textContent = t > 0 ? String(t) : '⚔️';
+    if(t > 0){
+      setTimeout(tick, 1000);
+    } else if(onDone){
+      onDone(); // Host เท่านั้นที่ push Firebase
+    }
+  };
+  setTimeout(tick, 1000);
 }
 
 // Helper: wrap Japanese text with furigana if reading available
@@ -2014,8 +2038,6 @@ function showReveal(revealData){
   const myAnswers = state.qAnswers;
   if(!myAnswers || myAnswers.length === 0) return;
 
-  console.log('showReveal: currentRobberType =', state.currentRobberType, '| isRobberQ =', state.currentRobberType !== 'normal' && state.currentRobberType !== null && state.currentRobberType !== undefined);
-
   const randMsg = (arr) => arr[Math.floor(Math.random()*arr.length)];
   const allCorrect = myAnswers.every(a=>a.correct);
   const robberTypeFromData = revealData.robberType; // null = รอบปกติ, 'petty/gang/boss' = รอบโจร
@@ -2217,7 +2239,6 @@ async function resolveRobberRound(room){
   Object.entries(pileResults).forEach(([pid,pr])=>{
     const p = players[pid];
     if(!p || p.eliminated) return;
-    console.log(`[resolve] pid=${pid} hitRobber=${pr.hitRobber} type=${pr.type} needsQuestion=${pr.needsQuestion} robberType=${robberType}`);
     let moneyChange = 0;
     let heartChange = 0;
     let weaponChange = 0;
@@ -2234,10 +2255,10 @@ async function resolveRobberRound(room){
       const rawAnswers = ans?.answers || {};
       const answerList = Array.isArray(rawAnswers) ? rawAnswers : Object.values(rawAnswers);
       correctCount = answerList.filter(a=>a && a.correct).length;
-      // คำนวณ allCorrect จาก answerList จริงๆ ไม่ trust Firebase boolean
       const totalQ = answerList.length;
       const allCorrect = totalQ > 0 && correctCount === totalQ;
       const currentWeapons = p.weapons || 0;
+      console.log(`[HIT ROBBER] robberType=${robberType} totalQ=${totalQ} correctCount=${correctCount} allCorrect=${allCorrect} answerList=`, answerList);
 
       if(robberType === 'boss'){
         // ถูกครบ 5 ข้อ = +1,000,000 + ⚔️ | ผิดแม้แต่ 1 ข้อ = -1,000,000 + ❤️-1
@@ -2280,6 +2301,7 @@ async function resolveRobberRound(room){
       }
     } else if(isRobberRound && pr.needsQuestion){
       const ans = answers[pid];
+      console.log(`[GRAVEL ROBBER ROUND] hitRobber=${pr.hitRobber} needsQuestion=${pr.needsQuestion} ans=`, ans);
       const correct = ans?.allCorrect || false;
       outcome = correct ? 'gravel_correct' : 'gravel_wrong';
       moneyChange = correct ? 200000 : 0; // รอบโจร เจอทองผสมกรวด ตอบถูก +200,000
@@ -2324,8 +2346,10 @@ async function resolveRobberRound(room){
   Object.entries(answers).forEach(([pid,a])=>{
     const p = players[pid];
     if(!p) return;
-    a.answers?.forEach((qa,i)=>{
-      qaLog.push({ player:p.name, word:qa.word, correct:qa.correct });
+    const rawAns = a.answers || {};
+    const ansList = Array.isArray(rawAns) ? rawAns : Object.values(rawAns);
+    ansList.forEach(qa=>{
+      if(qa) qaLog.push({ pid, player:p.name, word:qa.word, correct_ans:qa.correct_ans, correct:qa.correct });
     });
   });
 
@@ -2341,18 +2365,29 @@ async function resolveRobberRound(room){
     };
     const taunts = robberVictoryTaunts[robberType] || robberVictoryTaunts.petty;
     const taunt = taunts[Math.floor(Math.random()*taunts.length)];
+
+    // สะสม qaLog ทุกรอบ — append เข้า allQALog
+    const existingLog = room.allQALog ? (Array.isArray(room.allQALog) ? room.allQALog : Object.values(room.allQALog)) : [];
+    const newAllQALog = [...existingLog, ...qaLog];
+
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'robber_taunt',
       robberTauntData:{ taunt, robberType, won: false },
       resultData:{ perPlayer, isRobberRound, robberType },
-      qaLogRound: qaLog, _resolving:false, _questionResolving:false
+      qaLogRound: qaLog,
+      allQALog: newAllQALog,
+      _resolving:false, _questionResolving:false
     });
   } else {
-    // ชนะโจรหรือรอบปกติ → result โดยตรง ไม่มี taunt
+    const existingLog = room.allQALog ? (Array.isArray(room.allQALog) ? room.allQALog : Object.values(room.allQALog)) : [];
+    const newAllQALog = [...existingLog, ...qaLog];
+
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'result',
       resultData:{ perPlayer, isRobberRound, robberType },
-      qaLogRound: qaLog, _resolving:false, _questionResolving:false
+      qaLogRound: qaLog,
+      allQALog: newAllQALog,
+      _resolving:false, _questionResolving:false
     });
   }
 }
@@ -2770,12 +2805,25 @@ function buildFinalData(room){
   const all = [...alive, ...eliminated];
   const loser = [...Object.values(players)].filter(p=>!p.eliminated).sort((a,b)=>a.money-b.money)[0]
     || eliminated[0];
-  return { all, loser };
+
+  // รวม qaLog ทั้ง 3 วัน แยกตาม player
+  const rawLog = room.allQALog || {};
+  const logList = Array.isArray(rawLog) ? rawLog : Object.values(rawLog);
+  const playerQA = {}; // pid → [{ word, correct_ans, correct }]
+  logList.forEach(entry=>{
+    if(!entry) return;
+    const pid = entry.pid;
+    if(!pid) return;
+    if(!playerQA[pid]) playerQA[pid] = [];
+    playerQA[pid].push({ word: entry.word, correct_ans: entry.correct_ans, correct: entry.correct });
+  });
+
+  return { all, loser, playerQA };
 }
 
 function showFinal(data){
   if(!data) return;
-  const { all, loser } = data;
+  const { all, loser, playerQA } = data;
   const winner = all[0];
 
   document.getElementById('winner-name').textContent = (winner?.avatar||'')+(winner?.name||'—');
@@ -2794,6 +2842,55 @@ function showFinal(data){
   const pun = document.getElementById('punishment-text');
   if(loser){
     pun.innerHTML = `😱 <strong>${loser.avatar} ${loser.name}</strong> ต้องผันคำคุณศัพท์ <strong>70 คำ</strong> เป็นการลงโทษ!<br><br>ผันคำเหล่านี้เป็นรูปปฏิเสธปัจจุบัน (ไม่ตาย ไม่แพ้ ไม่ยอม แต่ต้องผัน 70 คำ! 😂)`;
+  }
+
+  // ===== สรุปข้อผิดพลาดรายคน =====
+  const qaArea = document.getElementById('final-qa-area');
+  if(qaArea && playerQA){
+    const accordionHTML = all.map(p=>{
+      const pid = p.pid;
+      const log = playerQA[pid] || [];
+      const wrongs = log.filter(e=>!e.correct);
+      const total = log.length;
+      const wrongCount = wrongs.length;
+      const pctCorrect = total > 0 ? Math.round(((total-wrongCount)/total)*100) : 100;
+
+      const wrongRows = wrongs.map(e=>{
+        const dispWord = e.word || '—';
+        const dispAns = e.correct_ans || '—';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(232,69,69,0.08);border-radius:6px;border-left:3px solid var(--accent-red)">
+          <span style="font-family:'Noto Sans JP',sans-serif;font-size:1rem;font-weight:700;color:var(--accent-gold)">${dispWord}</span>
+          <span style="color:var(--text-dim);font-size:0.8rem">→</span>
+          <span style="font-family:'Noto Sans JP',sans-serif;font-size:0.9rem;color:#ff8080">${dispAns}</span>
+        </div>`;
+      }).join('');
+
+      const id = 'qa-accordion-'+pid;
+      return `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px">
+          <button onclick="document.getElementById('${id}').style.display=document.getElementById('${id}').style.display==='none'?'flex':'none'"
+            style="width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:none;border:none;color:var(--text-main);font-family:inherit;cursor:pointer;text-align:left">
+            <span style="font-size:1.2rem">${p.avatar}</span>
+            <span style="flex:1;font-weight:700;font-size:0.95rem">${p.name}</span>
+            <span style="font-size:0.8rem;color:${wrongCount>0?'var(--accent-red)':'var(--accent-green)'}">
+              ❌ ${wrongCount} / ${total} ข้อ
+            </span>
+            <span style="font-size:0.8rem;color:var(--text-dim);margin-left:4px">▼</span>
+          </button>
+          <div id="${id}" style="display:none;flex-direction:column;gap:6px;padding:0 12px 12px">
+            ${wrongCount===0
+              ? `<div style="color:var(--accent-green);font-size:0.85rem;padding:8px">✅ ไม่มีข้อผิดพลาด! เก่งมาก!</div>`
+              : wrongRows
+            }
+          </div>
+        </div>`;
+    }).join('');
+
+    qaArea.innerHTML = `
+      <div style="margin-top:20px">
+        <div style="font-weight:700;font-size:1rem;margin-bottom:10px;color:var(--accent-gold)">📋 สรุปข้อผิดพลาดรายคน</div>
+        ${accordionHTML}
+      </div>`;
   }
 
   showScreen('screen-final');
