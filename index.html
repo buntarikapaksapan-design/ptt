@@ -1306,14 +1306,18 @@ function enterLobby(code){
     // ตรวจสอบว่าผู้เล่นถูก eliminate แล้วหรือยัง
     const myPlayerData = state.players[state.playerId];
     const iAmEliminated = myPlayerData?.eliminated === true;
+    // แสดงหน้า eliminated ครั้งแรกที่โดน eliminate
     if(iAmEliminated && !state._eliminatedShown){
       state._eliminatedShown = true;
-      showEliminatedScreen();
+      showEliminatedNotice();
+      return; // รอให้กด "ดูเกมต่อ" ก่อน
     }
-    // ถ้า eliminated ให้ update spectate area แต่ไม่ทำอะไรอื่น
-    if(iAmEliminated){
-      updateSpectateArea(room);
-      return;
+    // spectating mode — ใส่ overlay และ flow ปกติ
+    if(iAmEliminated && state._spectating){
+      injectSpectatorOverlay();
+      // ไม่ return — ให้ flow ปกติดำเนินต่อ (แต่ปุ่มถูก block โดย overlay)
+    } else if(iAmEliminated){
+      return; // ยังไม่กด "ดูเกมต่อ"
     }
 
     // ===== LOBBY =====
@@ -2376,19 +2380,60 @@ async function resolveRobberRound(room){
 }
 
 // ===== ELIMINATED SPECTATE =====
-function showEliminatedScreen(){
+function showEliminatedNotice(){
+  // แสดงหน้า eliminated ก่อน แล้วมีปุ่มให้ไป spectate
   document.getElementById('screen-eliminated').innerHTML = `
     <div class="panel slide-up" style="text-align:center;padding:40px 24px">
       <div style="font-size:5rem;margin-bottom:16px">💀</div>
       <div style="font-size:2rem;font-weight:900;color:var(--accent-red);margin-bottom:8px">หมดหัวใจ!</div>
       <div style="font-size:1rem;color:var(--text-dim);margin-bottom:24px">คุณแพ้แล้ว แต่ยังดูเกมต่อได้นะคะ</div>
-      <div style="background:rgba(232,69,69,0.1);border:1px solid rgba(232,69,69,0.3);border-radius:12px;padding:16px;margin-bottom:24px">
-        <div style="font-size:0.9rem;color:#ff8080">ตั้งแต่นี้ไปคุณเป็นผู้ชม<br>ดูผลเกมได้ แต่กดตัวเลือกไม่ได้อีกแล้ว</div>
+      <div style="background:rgba(232,69,69,0.1);border:1px solid rgba(232,69,69,0.3);border-radius:12px;padding:16px;margin-bottom:28px">
+        <div style="font-size:0.9rem;color:#ff8080">ตั้งแต่นี้ไปคุณเป็นผู้ชม<br>ดูเกมได้ แต่กดตัวเลือกไม่ได้อีกแล้ว</div>
       </div>
-      <div id="elim-spectate-area" style="text-align:left"></div>
+      <button class="btn btn-gold" style="width:100%" onclick="spectateGame()">👁 ดูเกมต่อ →</button>
     </div>
   `;
   showScreen('screen-eliminated');
+}
+
+window.spectateGame = function(){
+  state._spectating = true;
+  // force re-read จาก Firebase เพื่อให้ listener process ใหม่
+  get(ref(db,'rooms/'+state.roomCode)).then(snap=>{
+    if(!snap.exists()) return;
+    const room = snap.val();
+    injectSpectatorOverlay();
+    // แสดง phase ปัจจุบัน
+    const phase = room.phase;
+    if(phase==='select'||phase==='pile-select') showGameBoard();
+    else if(phase==='question') showWaitingForQuestion();
+    else if(phase==='reveal') showReveal(room.revealData);
+    else if(phase==='result') showResult(room.resultData, room.pileResults, room.pileChoices);
+    else if(phase==='summary') showSummary(room.summaryData);
+    else if(phase==='final') showFinal(room.finalData);
+    else if(phase==='emergency') showEmergency(room.emergencyData);
+  });
+};
+
+function injectSpectatorOverlay(){
+  // ใส่ overlay บนทุก screen ป้องกันการกด
+  let overlay = document.getElementById('spectator-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'spectator-overlay';
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:9999;pointer-events:all;
+      background:transparent;
+    `;
+    // แบนเนอร์บนสุด
+    overlay.innerHTML = `
+      <div style="position:fixed;top:0;left:0;right:0;z-index:10000;background:rgba(232,69,69,0.85);
+        backdrop-filter:blur(4px);padding:8px 16px;text-align:center;font-size:0.85rem;font-weight:700;color:#fff">
+        💀 คุณเป็นผู้ชม — ดูเกมได้แต่กดอะไรไม่ได้
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
 }
 
 function updateSpectateArea(room){
@@ -2473,7 +2518,7 @@ function showResult(resultData, pileResults, pileChoices){
       const gloatPool = {
         petty:['🦹 "ฮ่าๆๆ! ผันผิดเฉยเลย! เงิน 303,000฿ เป็นของข้าแล้ว~"','🦹 "อ่อนแอเกินไป! ขอบคุณสำหรับเงินนะ~"','🦹 "ง่ายเกินไปเลย! กลับไปเรียนใหม่ซะ!"'],
         gang:['🦹🦹 "ถูกไม่ถึง 2 ข้อ! 400,000฿ เป็นของพวกเราแล้ว!!"','🦹🦹 "4 ข้อแต่ตอบถูกแค่นั้นเองเหรอ? เอาเงินไปนะ~"','🦹🦹 "อ่อนแอ! ถูกไม่ถึงครึ่ง ขอบคุณ 400,000฿!"'],
-        boss:['🦹‍♂️ "ตอบผิดแค่ข้อเดียว ก็จบเลยนะ! 1,000,000฿ เป็นของข้า!"','🦹‍♂️ "หัวหน้าโจรอย่างข้า ไม่มีทางแพ้ได้! เงินล้านเอาไปเลย!"','🦹‍♂️ "5 ข้อต้องถูกทุกข้อถึงจะรอด แต่มึงทำไม่ได้! ฮ่าฮ่า~"']
+        boss:['🦹‍♂️ "ตอบผิดแค่ข้อเดียว ก็จบเลยนะ! 1,000,000฿ เป็นของข้า!"','🦹‍♂️ "หัวหน้าโจรอย่างข้า ไม่มีทางแพ้ได้! เงินล้านเอาไปเลย!"','🦹‍♂️ "5 ข้อต้องถูกทุกข้อถึงจะรอด แต่แกทำไม่ได้! ฮ่าฮ่า~"']
       };
       const gloat = (gloatPool[robberKey]||gloatPool.petty)[Math.floor(Math.random()*(gloatPool[robberKey]||gloatPool.petty).length)];
       rows += `
@@ -2497,7 +2542,7 @@ function showResult(resultData, pileResults, pileChoices){
       const rt2 = ROBBER_TYPE[robberKey] || ROBBER_TYPE.petty;
       const regretPool = {
         petty:['🦹 "ชิ! ตอบถูกเฉยเลย! ข้าหนีก่อนดีกว่า!"','🦹 "ไม่จริง! เก่งไปป่ะ! ครั้งหน้าจะไม่รอดแน่!"','🦹 "คราวนี้รอด แต่ครั้งหน้าข้าจะมาอีก!"'],
-        gang:['🦹🦹 "ถอย! ถอย! ตอบถูกเกินครึ่งได้ยังไง!"','🦹🦹 "เสียเงิน 400,000฿ เพราะถูก 2 ข้อขึ้นไป!! แย่จัง!"','🦹🦹 "ครั้งนี้มึงรอด แต่ครั้งหน้าจะตั้ง 8 ข้อให้ตายเลย!"'],
+        gang:['🦹🦹 "ถอย! ถอย! ตอบถูกเกินครึ่งได้ยังไง!"','🦹🦹 "เสียเงิน 400,000฿ เพราะถูก 2 ข้อขึ้นไป!! แย่จัง!"','🦹🦹 "ครั้งนี้แกรอด แต่ครั้งหน้าจะตั้ง 8 ข้อให้ตายเลย!"'],
         boss:['🦹‍♂️ "ไม่ได้เรื่อง!! ตอบถูกครบ 5 ข้อได้ยังไง!?"','🦹‍♂️ "1,000,000฿ เสียไปเฉยเลย... ข้าจะกลับมาแก้แค้น!!"','🦹‍♂️ "5 ข้อถูกหมด!? มนุษย์คนนี้ไม่ธรรมดา!! ข้าไม่ยอม!!"']
       };
       const regret = (regretPool[robberKey]||regretPool.petty)[Math.floor(Math.random()*(regretPool[robberKey]||regretPool.petty).length)];
@@ -2863,7 +2908,7 @@ window.backToTitle = function(){
   _resolvingQuestions = false;
   if(state.countInterval){ clearInterval(state.countInterval); }
   unsubAll();
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, _emergencyPushed:false, _emergencyShown:false, _eliminatedShown:false, countInterval:null, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, _emergencyPushed:false, _emergencyShown:false, _eliminatedShown:false, _spectating:false, countInterval:null, listeners:[] };
   showScreen('screen-title');
 };
 
