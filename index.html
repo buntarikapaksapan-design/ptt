@@ -2542,8 +2542,11 @@ window.resultNextRound = async function(){
 
     // reset local flags ก่อน
     state.round = nextRound;
-    state._emergencyShown = true; // บอก listener ไม่ต้องเรียก showEmergency ซ้ำ
+    state._emergencyShown = true;
     state._emergencyPushed = true;
+    state._questionStarted = false;
+    state._hostRevealStarted = false;
+    _resolvingQuestions = false;
     state.roundRobberTypes = room.roundRobberTypes || {};
 
     // push Firebase ให้ non-host เห็น emergency phase
@@ -2575,6 +2578,9 @@ window.resultNextRound = async function(){
     state.round = nextRound;
     state._emergencyPushed = false;
     state._emergencyShown = false;
+    state._questionStarted = false;
+    state._hostRevealStarted = false;
+    _resolvingQuestions = false;
     await update(ref(db,'rooms/'+state.roomCode),{
       phase:'select',
       round: nextRound,
