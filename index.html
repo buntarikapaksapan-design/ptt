@@ -1339,25 +1339,21 @@ function enterLobby(code){
     }
 
     if(phase === 'pile-select'){
-      // pile-select = หลัง emergency countdown จบ → เลือกกองได้
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
-      state._emergencyShown = false; // reset เผื่อรอบถัดไปเป็นโจรอีก
+      state._emergencyShown = false;
+      state.myPileChoice = null; // reset ทุกครั้ง
 
-      if(!document.getElementById('screen-game').classList.contains('active')){
-        showGameBoard();
-      } else {
-        updatePlayersStatus();
-        updateChoiceIndicators(room.pileChoices||{});
-      }
+      showGameBoard(); // เรียกทุกครั้งเพื่อ reset ปุ่มกอง
+
       const actRobber = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
       const allChoseRobber = actRobber.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
       if(allChoseRobber && actRobber.length > 0 && state.isHost && !state._robberResolving){
         state._robberResolving = true;
         get(ref(db,'rooms/'+code)).then(freshSnap=>{
           if(freshSnap.exists()) resolveRound(freshSnap.val());
-        });
+        }).catch(e=>{ state._robberResolving = false; });
       }
     }
 
