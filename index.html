@@ -1311,16 +1311,18 @@ function enterLobby(code){
 
     // ===== GAME PHASES =====
     if(phase === 'select'){
-      // select = รอบปกติเท่านั้น — reset flags รวมถึง emergency
       _resolvingQuestions = false;
       state._questionStarted = false;
       state._hostRevealStarted = false;
       state._emergencyShown = false;
       state._robberResolving = false;
+      state.myPileChoice = null;
 
       if(!document.getElementById('screen-game').classList.contains('active')){
         showGameBoard();
       } else {
+        state.myPileChoice = null;
+        renderPiles(NIGHT_CONFIG[state.day].piles);
         updatePlayersStatus();
         updateChoiceIndicators(room.pileChoices||{});
       }
@@ -1343,17 +1345,32 @@ function enterLobby(code){
       state._questionStarted = false;
       state._hostRevealStarted = false;
       state._emergencyShown = false;
-      state.myPileChoice = null; // reset ทุกครั้ง
+      state.myPileChoice = null;
 
-      showGameBoard(); // เรียกทุกครั้งเพื่อ reset ปุ่มกอง
+      // แสดง gameboard เฉพาะตอนที่ยังไม่ได้อยู่หน้านี้
+      if(!document.getElementById('screen-game').classList.contains('active')){
+        showGameBoard();
+      } else {
+        state.myPileChoice = null;
+        renderPiles(NIGHT_CONFIG[state.day].piles);
+        updatePlayersStatus();
+        updateChoiceIndicators(room.pileChoices||{});
+      }
 
-      const actRobber = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
-      const allChoseRobber = actRobber.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
-      if(allChoseRobber && actRobber.length > 0 && state.isHost && !state._robberResolving){
-        state._robberResolving = true;
-        get(ref(db,'rooms/'+code)).then(freshSnap=>{
-          if(freshSnap.exists()) resolveRound(freshSnap.val());
-        }).catch(e=>{ state._robberResolving = false; });
+      if(state.isHost && !room._resolving){
+        const actRobber = Object.entries(state.players).filter(([pid,p])=>!p.eliminated);
+        const allChoseRobber = actRobber.every(([pid])=>(room.pileChoices||{})[pid]!==undefined);
+        if(allChoseRobber && actRobber.length > 0){
+          // ใช้ transaction ป้องกัน double resolve
+          runTransaction(ref(db,'rooms/'+code+'/_resolving'), cur=>{
+            if(cur===true) return; return true;
+          }).then(async r=>{
+            if(r.committed){
+              const freshSnap = await get(ref(db,'rooms/'+code));
+              if(freshSnap.exists()) resolveRound(freshSnap.val());
+            }
+          });
+        }
       }
     }
 
@@ -1381,8 +1398,10 @@ function enterLobby(code){
 
       if(!state._questionStarted){
         state._questionStarted = true;
-        if(myResult.needsQuestion === true){
+        const needsQ = myResult.needsQuestion === true || myResult.needsQuestion === 'true';
+        if(needsQ){
           startQuestion(qData, robberType);
+          // ถ้า host ต้องตอบ waitAndReveal จะถูกเรียกจาก submitAnswers แทน
         } else {
           showWaitingForQuestion();
           if(state.isHost && !state._hostRevealStarted){
@@ -1396,8 +1415,7 @@ function enterLobby(code){
     if(phase === 'reveal'){
       state._questionStarted = false;
       state._hostRevealStarted = false;
-      if(!document.getElementById('screen-question').classList.contains('active') ||
-         document.getElementById('screen-question').innerHTML.includes('⏳')){
+      if(!document.getElementById('screen-result').classList.contains('active')){
         showReveal(room.revealData);
       }
     }
@@ -1506,10 +1524,14 @@ window.nightIntroDone = async function(){
     roundRobberTypes: roundRobberTypes,
     pileChoices: {},
     pileResults: null,
+    answers: {},
+    resultData: null,
+    emergencyData: null,
+    _resolving: false,
+    _questionResolving: false,
     windScatter: false,
     adjOrder: adjOrder,
     adjIndex: 0,
-    emergencyData: null,
     _selectReady: false
   });
   // Single listener จะรับ phase:'select' แล้ว showGameBoard เองอัตโนมัติ
@@ -1656,6 +1678,7 @@ async function resolveRound(room){
       phase: 'question',
       pileResults: newPileResults,
       questionData: ed.questionData,
+      answers: {},
       _resolving: false
     });
     return;
@@ -1695,6 +1718,7 @@ async function resolveRound(room){
     phase: 'question',
     pileResults,
     questionData: normalQuestionData,
+    answers: {},
     _resolving: false
   });
 }
@@ -1978,33 +2002,22 @@ window.answerQ = function(answer){
   const typeLabel = qdata.adj.type==='i'?'い-adj':'な-adj';
 
   document.getElementById('screen-question').innerHTML = `
-    <div class="panel question-panel slide-up">
-      <div class="question-header">
-        <span style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor};padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700">${rt.emoji} ${rt.name}</span>
-        <span style="color:var(--text-dim);font-size:0.85rem">คำถามที่ ${idx+1} / ${total}</span>
+    <div class="panel question-panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px">
+      <div style="font-size:2.5rem">${isCorrect ? '✅' : '❌'}</div>
+      <div style="font-size:1.1rem;font-weight:700;color:${isCorrect?'var(--accent-green)':'var(--accent-red)'}">
+        ${isCorrect ? 'ถูกต้อง!' : 'ผิด!'}
       </div>
-      <div class="multi-q-progress">${progressDots}</div>
-      <div class="question-box">
-        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px">"${qdata.adj.meaning}" — ผันเป็นปฏิเสธปัจจุบัน</div>
-        <div style="margin:8px 0">${furiganaHTML2}</div>
-        <div class="q-type-badge ${typeClass}" style="display:inline-block;margin-top:8px">${typeLabel}</div>
-      </div>
-      <div class="choices-grid">${choicesHTML}</div>
-      <div style="text-align:center;padding:12px;color:var(--text-dim);font-size:0.95rem">
-        ⏳ รอผู้เล่นทุกคนตอบ...
-      </div>
+      ${state.qAnswers.length < total ? `<div style="font-size:0.85rem;color:var(--text-dim);margin-top:8px">กำลังไปข้อที่ ${state.qAnswers.length+1}...</div>` : `<div style="font-size:0.85rem;color:var(--text-dim)">รอผู้เล่นอื่น...</div>`}
     </div>
   `;
 
   // Auto-advance to next question or submit after choosing
   if(state.qAnswers.length < total){
-    // Still have more questions — go next after brief pause
     setTimeout(()=>{
-      state.currentQIndex = state.qAnswers.length; // sync index with answers
+      state.currentQIndex = state.qAnswers.length;
       renderQuestion();
     }, 800);
   } else {
-    // All answered — submit
     submitAnswers();
   }
 };
@@ -2164,6 +2177,10 @@ async function waitAndReveal(){
     const snap = await get(ref(db,'rooms/'+state.roomCode));
     if(!snap.exists()){ clearInterval(pollInterval); _resolvingQuestions=false; return; }
     const room = snap.val();
+
+    // หยุดถ้า phase เปลี่ยนไปแล้ว (อาจถูก resolve จาก instance อื่น)
+    if(room.phase !== 'question'){ clearInterval(pollInterval); _resolvingQuestions=false; return; }
+
     const pileResults = room.pileResults || {};
     const answers = room.answers || {};
     const questionPlayers = Object.entries(pileResults).filter(([pid,pr])=>pr.needsQuestion===true || pr.needsQuestion==='true');
@@ -2188,9 +2205,11 @@ async function waitAndReveal(){
         _resolving: false
       });
       setTimeout(async()=>{
-        const freshSnap = await get(ref(db,'rooms/'+state.roomCode));
-        if(freshSnap.exists()) await resolveRound_withAnswers(freshSnap.val());
-        _resolvingQuestions = false; // reset หลัง resolve เสร็จจริงๆ
+        try{
+          const freshSnap = await get(ref(db,'rooms/'+state.roomCode));
+          if(freshSnap.exists()) await resolveRound_withAnswers(freshSnap.val());
+        }catch(e){ console.warn('resolve error',e); }
+        finally{ _resolvingQuestions = false; }
       }, 4000);
     }
   }, 1000);
