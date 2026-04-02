@@ -798,6 +798,18 @@
   </div>
 </div>
 
+<div id="screen-eliminated" class="screen">
+  <div class="panel slide-up" style="text-align:center;padding:40px 24px">
+    <div style="font-size:5rem;margin-bottom:16px">💀</div>
+    <div style="font-size:2rem;font-weight:900;color:var(--accent-red);margin-bottom:8px">หมดหัวใจ!</div>
+    <div style="font-size:1rem;color:var(--text-dim);margin-bottom:24px">คุณแพ้แล้ว แต่ยังดูเกมต่อได้นะคะ</div>
+    <div style="background:rgba(232,69,69,0.1);border:1px solid rgba(232,69,69,0.3);border-radius:12px;padding:16px;margin-bottom:24px">
+      <div style="font-size:0.9rem;color:#ff8080">ตั้งแต่นี้ไปคุณเป็นผู้ชม<br>ดูผลเกมได้ แต่กดตัวเลือกไม่ได้อีกแล้ว</div>
+    </div>
+    <div id="elim-spectate-area"></div>
+  </div>
+</div>
+
 <!-- ==================== SCREEN: DAY SUMMARY ==================== -->
 <div id="screen-summary" class="screen">
   <div class="panel summary-panel slide-up" style="max-height:90vh;overflow-y:auto">
@@ -1290,6 +1302,19 @@ function enterLobby(code){
     state.day = room.day || 1;
     state.round = room.round || 1;
     state.roundRobberTypes = room.roundRobberTypes || {};
+
+    // ตรวจสอบว่าผู้เล่นถูก eliminate แล้วหรือยัง
+    const myPlayerData = state.players[state.playerId];
+    const iAmEliminated = myPlayerData?.eliminated === true;
+    if(iAmEliminated && !state._eliminatedShown){
+      state._eliminatedShown = true;
+      showEliminatedScreen();
+    }
+    // ถ้า eliminated ให้ update spectate area แต่ไม่ทำอะไรอื่น
+    if(iAmEliminated){
+      updateSpectateArea(room);
+      return;
+    }
 
     // ===== LOBBY =====
     if(phase === 'lobby'){
@@ -2207,7 +2232,13 @@ async function waitAndReveal(){
       setTimeout(async()=>{
         try{
           const freshSnap = await get(ref(db,'rooms/'+state.roomCode));
-          if(freshSnap.exists()) await resolveRound_withAnswers(freshSnap.val());
+          if(freshSnap.exists()){
+            const freshRoom = freshSnap.val();
+            // ตรวจ phase ก่อน — ถ้า host กดรอบถัดไปแล้วไม่ต้อง resolve
+            if(freshRoom.phase === 'reveal'){
+              await resolveRound_withAnswers(freshRoom);
+            }
+          }
         }catch(e){ console.warn('resolve error',e); }
         finally{ _resolvingQuestions = false; }
       }, 4000);
@@ -2342,6 +2373,41 @@ async function resolveRobberRound(room){
     allQALog: newAllQALog,
     _resolving:false, _questionResolving:false
   });
+}
+
+// ===== ELIMINATED SPECTATE =====
+function showEliminatedScreen(){
+  document.getElementById('screen-eliminated').innerHTML = `
+    <div class="panel slide-up" style="text-align:center;padding:40px 24px">
+      <div style="font-size:5rem;margin-bottom:16px">💀</div>
+      <div style="font-size:2rem;font-weight:900;color:var(--accent-red);margin-bottom:8px">หมดหัวใจ!</div>
+      <div style="font-size:1rem;color:var(--text-dim);margin-bottom:24px">คุณแพ้แล้ว แต่ยังดูเกมต่อได้นะคะ</div>
+      <div style="background:rgba(232,69,69,0.1);border:1px solid rgba(232,69,69,0.3);border-radius:12px;padding:16px;margin-bottom:24px">
+        <div style="font-size:0.9rem;color:#ff8080">ตั้งแต่นี้ไปคุณเป็นผู้ชม<br>ดูผลเกมได้ แต่กดตัวเลือกไม่ได้อีกแล้ว</div>
+      </div>
+      <div id="elim-spectate-area" style="text-align:left"></div>
+    </div>
+  `;
+  showScreen('screen-eliminated');
+}
+
+function updateSpectateArea(room){
+  const el = document.getElementById('elim-spectate-area');
+  if(!el) return;
+  const players = Object.values(room.players||{}).sort((a,b)=>b.money-a.money);
+  el.innerHTML = `
+    <div style="color:var(--text-dim);font-size:0.8rem;margin-bottom:8px">อันดับปัจจุบัน</div>
+    ${players.map((p,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:8px;margin-bottom:6px;${p.eliminated?'opacity:0.4':''}">
+        <span>${p.eliminated?'💀':['🥇','🥈','🥉'][i]||'🏅'}</span>
+        <span style="font-size:1.1rem">${p.avatar}</span>
+        <span style="flex:1;font-weight:700">${p.name}</span>
+        <span style="color:var(--accent-gold);font-weight:700">${(p.money||0).toLocaleString()}฿</span>
+        <span>${heartsDisplay(p.hearts||0)}</span>
+      </div>
+    `).join('')}
+    <div style="color:var(--text-dim);font-size:0.8rem;margin-top:12px;text-align:center">รอบที่ ${room.round||1} / 10 — Day ${room.day||1}</div>
+  `;
 }
 
 // ===== RESULT =====
@@ -2508,6 +2574,10 @@ function showResult(resultData, pileResults, pileChoices){
 
 window.resultNextRound = async function(){
   if(!state.isHost) return;
+  // reset ทุก flag ก่อนเสมอ
+  _resolvingQuestions = false;
+  state._questionStarted = false;
+  state._hostRevealStarted = false;
   const round = state.round;
   const day = state.day;
 
@@ -2793,7 +2863,7 @@ window.backToTitle = function(){
   _resolvingQuestions = false;
   if(state.countInterval){ clearInterval(state.countInterval); }
   unsubAll();
-  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, _emergencyPushed:false, _emergencyShown:false, countInterval:null, listeners:[] };
+  state = { roomCode:null, playerId:null, playerName:null, isHost:false, players:{}, day:1, round:1, phase:'lobby', currentRobberType:null, isRobberRound:false, myPileChoice:null, pileResults:null, currentQuestions:[], currentQIndex:0, qAnswers:[], dayQALog:[], windScatterActive:false, roundRobberTypes:{}, _questionStarted:false, _hostRevealStarted:false, _emergencyPushed:false, _emergencyShown:false, _eliminatedShown:false, countInterval:null, listeners:[] };
   showScreen('screen-title');
 };
 
