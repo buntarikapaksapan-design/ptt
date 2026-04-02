@@ -1936,6 +1936,8 @@ function renderQuestion(){
 window.answerQ = function(answer){
   clearInterval(qTimer);
   const idx = state.currentQIndex;
+  // ป้องกัน double-answer: ถ้า qAnswers มีคำตอบสำหรับ idx นี้แล้ว ให้ skip
+  if(state.qAnswers.length > idx) return;
   const qdata = state.currentQuestions[idx];
   const correct = qdata.correct;
   const isCorrect = answer === correct && answer !== '__timeout__';
